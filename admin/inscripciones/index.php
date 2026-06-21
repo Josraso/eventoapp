@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$pageTitle = 'Inscripciones';
+$pageTitle = 'Pedidos';
 require_once __DIR__ . '/../_header.php';
 
 // ── FILTROS ────────────────────────────────────────────────────────────────────

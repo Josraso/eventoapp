@@ -310,6 +310,10 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
         </div>
       <?php elseif ($yaInscrito): ?>
         <div class="alert alert-info">✓ Ya estás inscrito en este evento. <a href="mi-cuenta.php">Ver mis entradas →</a></div>
+        <a href="evento.php?slug=<?= urlencode($slug) ?>&step=inscripcion"
+           class="btn btn-full btn-outline" style="margin-top:10px;">
+          ➕ Si quieres comprar más entradas, pincha aquí
+        </a>
       <?php else: ?>
         <a href="evento.php?slug=<?= urlencode($slug) ?>&step=<?= $isLogged ? 'inscripcion' : 'auth' ?>"
            class="btn btn-full" style="margin-top:8px;">
