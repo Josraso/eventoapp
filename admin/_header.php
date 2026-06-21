@@ -22,6 +22,7 @@ $nav = [
     ['url' => $base.'/admin/inscritos/index.php',      'icon' => '🧍', 'label' => 'Inscritos',      'match' => '/admin/inscritos/'],
     ['url' => $base.'/admin/usuarios/index.php',       'icon' => '👤', 'label' => 'Usuarios',       'match' => '/admin/usuarios/'],
     ['url' => $base.'/admin/porteros/index.php',       'icon' => '🚪', 'label' => 'Porteros',       'match' => '/admin/porteros/'],
+    ['url' => $base.'/admin/camareros/index.php',      'icon' => '🍹', 'label' => 'Camareros',      'match' => '/admin/camareros/'],
     ['url' => $base.'/admin/ajustes/index.php',        'icon' => '⚙️', 'label' => 'Ajustes',        'match' => '/admin/ajustes/'],
 ];
 if ($adminRole === 'superadmin') {

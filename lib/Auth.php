@@ -197,4 +197,18 @@ class Auth
         $st->execute([$id]);
         return $st->fetchAll(PDO::FETCH_COLUMN);
     }
+
+    // ── CAMARERO ──────────────────────────────────────────────────────────────
+
+    public static function camareroEventos(): array
+    {
+        $id = self::adminId();
+        if (!$id) return [];
+        if (self::adminRole() !== 'camarero') {
+            return db()->query('SELECT id FROM eventos WHERE activo=1 AND archivado=0')->fetchAll(PDO::FETCH_COLUMN);
+        }
+        $st = db()->prepare('SELECT evento_id FROM portero_eventos WHERE admin_id=?');
+        $st->execute([$id]);
+        return $st->fetchAll(PDO::FETCH_COLUMN);
+    }
 }
