@@ -137,6 +137,10 @@ foreach ($inscripciones as $ins) {
 .tab.active { color: #1a1a1a; border-bottom-color: #1a1a1a; }
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
+.subtab { padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; color: #888; transition: color .15s; background: none; border-top: none; border-left: none; border-right: none; font-family: inherit; }
+.subtab.active { color: #1a1a1a; border-bottom-color: #1a1a1a; }
+.sub-tab-panel { display: none; }
+.sub-tab-panel.active { display: block; }
 .entrada-item { border: 1px solid #e4e4e8; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
 .entrada-nombre { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
 .entrada-token { font-family: monospace; font-size: 11px; color: #aaa; }
@@ -248,10 +252,16 @@ foreach ($inscripciones as $ins) {
             </div>
           <?php endif; ?>
 
-          <?php if ($ins['estado_pago'] === 'pagado' && !empty($entradas)): ?>
-            <div style="font-size:12px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">
-              Entradas (<?= count($entradasActivas) ?>)
+          <?php if ($ins['estado_pago'] === 'pagado' && (!empty($entradas) || !empty($consumiciones))): ?>
+          <?php if (!empty($entradas) && !empty($consumiciones)): ?>
+            <div class="tabs" style="margin-bottom:14px;">
+              <button type="button" class="subtab active" onclick="showSubTab(<?= $ins['id'] ?>,'entradas',this)">🎫 Entradas (<?= count($entradas) ?>)</button>
+              <button type="button" class="subtab" onclick="showSubTab(<?= $ins['id'] ?>,'consumiciones',this)">🍹 Consumiciones (<?= count($consumiciones) ?>)</button>
             </div>
+          <?php endif; ?>
+
+          <?php if (!empty($entradas)): ?>
+          <div class="sub-tab-panel active" id="subtab-<?= $ins['id'] ?>-entradas">
             <?php if (empty($entradasActivas)): ?>
               <p style="font-size:13px;color:#aaa;margin-bottom:10px;">Todas las entradas de este pedido ya han sido canjeadas.</p>
             <?php endif; ?>
@@ -306,12 +316,11 @@ foreach ($inscripciones as $ins) {
               <?php endforeach; ?>
             </div>
             <?php endif; ?>
+          </div>
           <?php endif; ?>
 
-          <?php if ($ins['estado_pago'] === 'pagado' && !empty($consumiciones)): ?>
-            <div style="font-size:12px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;margin-top:14px;">
-              Consumiciones (<?= count($consActivas) ?>)
-            </div>
+          <?php if (!empty($consumiciones)): ?>
+          <div class="sub-tab-panel<?= empty($entradas) ? ' active' : '' ?>" id="subtab-<?= $ins['id'] ?>-consumiciones" <?= !empty($entradas) ? 'style="display:none;"' : '' ?>>
             <?php if (empty($consActivas)): ?>
               <p style="font-size:13px;color:#aaa;margin-bottom:10px;">Todas las consumiciones de este pedido ya han sido canjeadas.</p>
             <?php endif; ?>
@@ -353,6 +362,8 @@ foreach ($inscripciones as $ins) {
               <?php endforeach; ?>
             </div>
             <?php endif; ?>
+          </div>
+          <?php endif; ?>
           <?php endif; ?>
           </div>
           <?php endforeach; ?>
@@ -404,6 +415,14 @@ function showTab(id, btn) {
     document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
     document.getElementById('tab-' + id).classList.add('active');
     btn.classList.add('active');
+}
+function showSubTab(pedidoId, tipo, btn) {
+    var wrap = btn.closest('.tabs');
+    wrap.querySelectorAll('.subtab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    var pedidoBox = btn.closest('.pedido-box');
+    pedidoBox.querySelectorAll('.sub-tab-panel').forEach(p => p.classList.remove('active'));
+    pedidoBox.querySelector('#subtab-' + pedidoId + '-' + tipo).classList.add('active');
 }
 function toggleEnviar(id) {
     var el = document.getElementById('enviar-' + id);
