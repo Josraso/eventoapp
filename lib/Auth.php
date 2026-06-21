@@ -168,11 +168,17 @@ class Auth
     private static function startSession(): void
     {
         if (session_status() !== PHP_SESSION_NONE) return;
-        $isPortero = strpos($_SERVER['SCRIPT_NAME'] ?? '', '/qr-reader/') !== false;
-        // Nombre de cookie distinto para portero: así su sesión nunca se mezcla
-        // con la del admin ni con la del cliente, aunque compartan navegador.
-        session_name($isPortero ? 'eventoapp_portero' : 'eventoapp_sess');
-        $lifetime  = $isPortero ? 2592000 : 0; // 30 días para portero
+        $script = $_SERVER['SCRIPT_NAME'] ?? '';
+        $isQrReader = strpos($script, '/qr-reader/') !== false;
+        $isLogout   = strpos($script, '/qr-reader/logout-portero.php') !== false;
+        $camareroScripts = ['barra.php', 'listado-consumicion.php', 'marcar-consumicion.php', 'validar-consumicion.php', 'venta-caja.php'];
+        $isCamarero = in_array(basename($script), $camareroScripts, true)
+            || ($isLogout && strpos($_SERVER['HTTP_REFERER'] ?? '', 'barra.php') !== false);
+        // Nombre de cookie distinto para portero y camarero: así sus sesiones nunca
+        // se mezclan entre sí ni con la del admin/cliente, aunque compartan navegador.
+        $cookieName = $isCamarero ? 'eventoapp_camarero' : ($isQrReader ? 'eventoapp_portero' : 'eventoapp_sess');
+        session_name($cookieName);
+        $lifetime  = $isQrReader ? 2592000 : 0; // 30 días para portero/camarero
         $secure    = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
         session_set_cookie_params([
             'lifetime' => $lifetime,
