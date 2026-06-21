@@ -4,6 +4,6 @@
         "phpmailer/phpmailer": "^7.1",
         "tecnickcom/tcpdf": "^6.11",
         "stripe/stripe-php": "^20.2",
-        "phpoffice/phpspreadsheet": "^5.8"
+        "phpoffice/phpspreadsheet": "^1.29"
     }
 }

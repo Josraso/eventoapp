@@ -7,6 +7,7 @@ namespace Composer\Autoload;
 class ComposerStaticInit80af400167e4ecde2e97b76e89aad27b
 {
     public static $files = array (
+        '2cffec82183ee1cea088009cef9a6fc3' => __DIR__ . '/..' . '/ezyang/htmlpurifier/library/HTMLPurifier.composer.php',
         'd92f49fe138fde4e7a3ec6f988960524' => __DIR__ . '/..' . '/stripe/stripe-php/lib/version_check.php',
     );
 
@@ -95,6 +96,16 @@ class ComposerStaticInit80af400167e4ecde2e97b76e89aad27b
         ),
     );
 
+    public static $prefixesPsr0 = array (
+        'H' => 
+        array (
+            'HTMLPurifier' => 
+            array (
+                0 => __DIR__ . '/..' . '/ezyang/htmlpurifier/library',
+            ),
+        ),
+    );
+
     public static $classMap = array (
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
         'Datamatrix' => __DIR__ . '/..' . '/tecnickcom/tcpdf/include/barcodes/datamatrix.php',
@@ -116,6 +127,7 @@ class ComposerStaticInit80af400167e4ecde2e97b76e89aad27b
         return \Closure::bind(function () use ($loader) {
             $loader->prefixLengthsPsr4 = ComposerStaticInit80af400167e4ecde2e97b76e89aad27b::$prefixLengthsPsr4;
             $loader->prefixDirsPsr4 = ComposerStaticInit80af400167e4ecde2e97b76e89aad27b::$prefixDirsPsr4;
+            $loader->prefixesPsr0 = ComposerStaticInit80af400167e4ecde2e97b76e89aad27b::$prefixesPsr0;
             $loader->classMap = ComposerStaticInit80af400167e4ecde2e97b76e89aad27b::$classMap;
 
         }, null, ClassLoader::class);
