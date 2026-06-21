@@ -1,6 +1,6 @@
 <?php
-$pageTitle = 'Porteros';
-require_once __DIR__ . '/../_header.php';
+require_once __DIR__ . '/../../lib/db.php';
+require_once __DIR__ . '/../../lib/Auth.php';
 
 Auth::adminCheck('superadmin','admin');
 
@@ -64,6 +64,9 @@ $porteros = db()->query("SELECT p.*, GROUP_CONCAT(e.nombre ORDER BY e.nombre SEP
 
 $eventos = db()->query("SELECT id, nombre FROM eventos WHERE activo=1 AND archivado=0 ORDER BY nombre")->fetchAll();
 $pidEditar = (int)($_GET['editar'] ?? 0);
+
+$pageTitle = 'Porteros';
+require_once __DIR__ . '/../_header.php';
 ?>
 
 <?php if ($error): ?><div class="alert alert-error"><?= h($error) ?></div><?php endif; ?>

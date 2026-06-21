@@ -1,6 +1,10 @@
 <?php
-$pageTitle = 'Eventos';
-require_once __DIR__ . '/../_header.php';
+require_once __DIR__ . '/../../lib/db.php';
+require_once __DIR__ . '/../../lib/Auth.php';
+
+Auth::adminCheck('superadmin', 'admin');
+$adminRole = Auth::adminRole();
+$base = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Auth::checkCsrf();
@@ -34,6 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: ' . $base . '/admin/eventos/index.php');
     exit;
 }
+
+$pageTitle = 'Eventos';
+require_once __DIR__ . '/../_header.php';
 
 $filtro = $_GET['filtro'] ?? 'activos';
 $where  = match($filtro) {

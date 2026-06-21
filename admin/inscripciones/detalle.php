@@ -1,6 +1,9 @@
 <?php
-$pageTitle = 'Detalle inscripción';
-require_once __DIR__ . '/../_header.php';
+require_once __DIR__ . '/../../lib/db.php';
+require_once __DIR__ . '/../../lib/Auth.php';
+
+Auth::adminCheck('superadmin', 'admin');
+$base = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
 
 $id = (int)($_GET['id'] ?? 0);
 $stIns = db()->prepare('SELECT i.*, e.nombre as evento_nombre, e.fecha_evento, e.lugar, e.campo_qr_extra,
@@ -71,6 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . $base . '/admin/inscripciones/detalle.php?id='.$id); exit;
     }
 }
+
+$pageTitle = 'Detalle inscripción';
+require_once __DIR__ . '/../_header.php';
 
 $bc = match($ins['estado_pago']) { 'pagado'=>'badge-green','pendiente'=>'badge-orange',default=>'badge-red' };
 ?>

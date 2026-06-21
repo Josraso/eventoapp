@@ -7,6 +7,7 @@ Auth::adminCheck('superadmin', 'admin');
 $id     = (int)($_GET['id'] ?? 0);
 $evento = null;
 $campos = [];
+$base   = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
 
 if ($id) {
     $st = db()->prepare('SELECT * FROM eventos WHERE id=?');
@@ -20,9 +21,6 @@ if ($id) {
 }
 
 $pageTitle = $evento ? 'Editar evento: ' . $evento['nombre'] : 'Nuevo evento';
-$siteName  = getSetting('site_name', 'Eventos');
-$adminRole = Auth::adminRole();
-$flash     = getFlash();
 $error     = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -124,13 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title><?= h($pageTitle) ?> — Admin</title>
-</head>
-
+<?php require_once __DIR__ . '/../_header.php'; ?>
 
 <?php if ($error): ?><div class="alert alert-error"><?= h($error) ?></div><?php endif; ?>
 

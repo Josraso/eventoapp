@@ -1,6 +1,9 @@
 <?php
-$pageTitle = 'Inscripciones';
-require_once __DIR__ . '/../_header.php';
+require_once __DIR__ . '/../../lib/db.php';
+require_once __DIR__ . '/../../lib/Auth.php';
+
+Auth::adminCheck('superadmin', 'admin');
+$base = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
 
 // ── CONFIRMAR PAGO MANUAL ─────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -47,7 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'estado'    => $_POST['estado_actual'] ?? '',
         'q'         => $_POST['q_actual'] ?? '',
     ])));
+    exit;
 }
+
+$pageTitle = 'Inscripciones';
+require_once __DIR__ . '/../_header.php';
 
 // ── FILTROS ────────────────────────────────────────────────────────────────────
 $eventoFiltro = (int)($_GET['evento_id'] ?? 0);

@@ -23,9 +23,10 @@ $ultimasIns = db()->query("
 
 $topEventos = db()->query("
     SELECT e.id, e.nombre,
-        SUM(CASE WHEN i.estado_pago='pagado' THEN 1 ELSE 0 END) as pagados
+        COUNT(ent.id) as pagados
     FROM eventos e
-    LEFT JOIN inscripciones i ON i.evento_id=e.id
+    LEFT JOIN inscripciones i ON i.evento_id=e.id AND i.estado_pago='pagado'
+    LEFT JOIN entradas ent ON ent.inscripcion_id=i.id
     GROUP BY e.id, e.nombre
     ORDER BY pagados DESC LIMIT 5
 ")->fetchAll();

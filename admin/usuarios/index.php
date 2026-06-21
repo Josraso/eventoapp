@@ -1,6 +1,9 @@
 <?php
-$pageTitle = 'Usuarios';
-require_once __DIR__ . '/../_header.php';
+require_once __DIR__ . '/../../lib/db.php';
+require_once __DIR__ . '/../../lib/Auth.php';
+
+Auth::adminCheck('superadmin', 'admin');
+$base = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Auth::checkCsrf();
@@ -13,6 +16,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     header('Location: ' . $base . '/admin/usuarios/index.php'); exit;
 }
+
+$pageTitle = 'Usuarios';
+require_once __DIR__ . '/../_header.php';
 
 $q      = trim($_GET['q'] ?? '');
 $pagina = max(1,(int)($_GET['p'] ?? 1));

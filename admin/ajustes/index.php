@@ -1,6 +1,10 @@
 <?php
-$pageTitle = 'Ajustes';
-require_once __DIR__ . '/../_header.php';
+require_once __DIR__ . '/../../lib/db.php';
+require_once __DIR__ . '/../../lib/Auth.php';
+
+Auth::adminCheck('superadmin', 'admin');
+
+$base = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Auth::checkCsrf();
@@ -47,6 +51,9 @@ if (isset($_GET['test_smtp']) && $isSuperAdmin) {
     $res = $m->send(getSetting('mail_from_email'), 'Test', 'Test SMTP — ' . getSetting('site_name'), '<p>Este es un email de prueba. Si lo recibes, el SMTP está correctamente configurado.</p>');
     $smtpTestResult = $res['ok'] ? '<div class="alert alert-success">✓ Email de prueba enviado a ' . getSetting('mail_from_email') . '</div>' : '<div class="alert alert-error">Error: ' . h($res['error']) . '</div>';
 }
+
+$pageTitle = 'Ajustes';
+require_once __DIR__ . '/../_header.php';
 ?>
 
 <?= $smtpTestResult ?>
