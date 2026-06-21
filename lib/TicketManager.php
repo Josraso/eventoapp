@@ -38,6 +38,38 @@ class TicketManager
     }
 
     /**
+     * Busca una entrada por su código corto (para introducción manual en el portero)
+     */
+    public static function validarCodigoCorto(string $codigo): ?array
+    {
+        $st = db()->prepare('SELECT e.*, i.numero_pedido, i.evento_id as ins_evento_id,
+            ev.nombre as evento_nombre, ev.fecha_evento, ev.lugar, ev.campo_qr_extra
+            FROM entradas e
+            JOIN inscripciones i ON i.id = e.inscripcion_id
+            JOIN eventos ev ON ev.id = e.evento_id
+            WHERE e.codigo_corto = ?');
+        $st->execute([strtoupper($codigo)]);
+        return $st->fetch() ?: null;
+    }
+
+    /**
+     * Genera un código corto único, fácil de escribir a mano (sin 0/O/1/I)
+     */
+    public static function generarCodigoCorto(): string
+    {
+        $alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        do {
+            $codigo = '';
+            for ($i = 0; $i < 6; $i++) {
+                $codigo .= $alfabeto[random_int(0, strlen($alfabeto) - 1)];
+            }
+            $exists = db()->prepare('SELECT COUNT(*) FROM entradas WHERE codigo_corto=?');
+            $exists->execute([$codigo]);
+        } while ((int)$exists->fetchColumn() > 0);
+        return $codigo;
+    }
+
+    /**
      * Genera la imagen QR como PNG en base64
      */
     public static function generarQRImagenBase64(string $qrContent): string
@@ -148,6 +180,15 @@ class TicketManager
             $pdf->SetXY(98, 48);
             $pdf->Image($qrTmp, 100, 50, 40, 40, 'PNG');
             @unlink($qrTmp);
+        }
+
+        // Código corto (alternativa al QR para introducción manual)
+        if (!empty($entrada['codigo_corto'])) {
+            $pdf->SetXY(10, $y + 4);
+            $pdf->SetFont('helvetica', 'B', 10);
+            $pdf->SetTextColor(26, 26, 26);
+            $pdf->Cell(128, 6, 'CÓDIGO: ' . $entrada['codigo_corto'], 0, 1, 'C');
+            $y += 6;
         }
 
         // Token legible

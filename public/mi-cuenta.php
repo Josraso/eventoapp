@@ -230,7 +230,7 @@ $inscripciones = $stIns->fetchAll();
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                 <div>
                   <div class="entrada-nombre"><?= h($ent['nombre_asistente']) ?> <?= $ent['es_titular'] ? '<span class="badge badge-blue">titular</span>' : '' ?></div>
-                  <div class="entrada-token">QR: <?= h(substr($ent['qr_token'], 0, 16)) ?>...</div>
+                  <div class="entrada-token">QR: <?= h(substr($ent['qr_token'], 0, 16)) ?>...<?= !empty($ent['codigo_corto']) ? ' &middot; Código: <strong>' . h($ent['codigo_corto']) . '</strong>' : '' ?></div>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                   <a href="descargar-entrada.php?id=<?= $ent['id'] ?>" target="_blank" class="btn btn-sm btn-outline">⬇ Descargar</a>

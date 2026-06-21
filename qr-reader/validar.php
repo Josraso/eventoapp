@@ -13,10 +13,10 @@ if (empty($_SESSION['admin_id'])) {
     exit;
 }
 
-$token   = preg_replace('/[^a-f0-9]/', '', $_POST['token'] ?? '');
+$tokenRaw = trim($_POST['token'] ?? '');
 $eventoId = (int)($_POST['evento_id'] ?? 0);
 
-if (!$token) {
+if (!$tokenRaw) {
     echo json_encode(['resultado' => 'invalido']);
     exit;
 }
@@ -28,13 +28,18 @@ if ($eventoId && !in_array($eventoId, $eventosPortero)) {
     exit;
 }
 
-$entrada = TicketManager::validarQRToken($token);
+// El token largo del QR es hexadecimal (48 chars); el código corto manual es alfanumérico (6 chars)
+if (preg_match('/^[a-f0-9]{48}$/i', $tokenRaw)) {
+    $entrada = TicketManager::validarQRToken(strtolower($tokenRaw));
+} else {
+    $entrada = TicketManager::validarCodigoCorto($tokenRaw);
+}
 
 if (!$entrada) {
     // Log intento inválido
     try {
-        $stDummy = db()->prepare('SELECT id FROM entradas WHERE qr_token=? LIMIT 1');
-        $stDummy->execute([$token]);
+        $stDummy = db()->prepare('SELECT id FROM entradas WHERE qr_token=? OR codigo_corto=? LIMIT 1');
+        $stDummy->execute([strtolower($tokenRaw), strtoupper($tokenRaw)]);
         $entDummy = $stDummy->fetch();
         if ($entDummy) {
             db()->prepare('INSERT INTO qr_logs (entrada_id,evento_id,admin_id,resultado,ip) VALUES(?,?,?,?,?)')

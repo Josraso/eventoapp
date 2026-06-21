@@ -155,9 +155,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             // Insertar entradas
             foreach ($asistentes as $asi) {
                 $qrData = TicketManager::generarQRToken($inscripcionId, $evento['id'], $inscripcionId);
+                $codigoCorto = TicketManager::generarCodigoCorto();
                 // Lo actualizamos después con el ID real
-                db()->prepare('INSERT INTO entradas (inscripcion_id,evento_id,qr_token,qr_hash,nombre_asistente,es_titular,campos_extra) VALUES(?,?,?,?,?,?,?)')
-                   ->execute([$inscripcionId, $evento['id'], $qrData['token'], $qrData['hash'],
+                db()->prepare('INSERT INTO entradas (inscripcion_id,evento_id,qr_token,qr_hash,codigo_corto,nombre_asistente,es_titular,campos_extra) VALUES(?,?,?,?,?,?,?,?)')
+                   ->execute([$inscripcionId, $evento['id'], $qrData['token'], $qrData['hash'], $codigoCorto,
                        $asi['nombre'], $asi['es_titular'] ? 1 : 0, json_encode($asi['campos'])]);
                 $entradaId = (int)db()->lastInsertId();
                 // Regenerar hash con ID real

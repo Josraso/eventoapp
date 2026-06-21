@@ -136,6 +136,9 @@ $bc = match($ins['estado_pago']) { 'pagado'=>'badge-green','pendiente'=>'badge-o
         </div>
         <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
           <code style="font-size:11px;color:#aaa;"><?= h(substr($ent['qr_token'],0,20)) ?>...</code>
+          <?php if (!empty($ent['codigo_corto'])): ?>
+            <span class="badge badge-blue" style="font-family:monospace;letter-spacing:.05em;">Código: <?= h($ent['codigo_corto']) ?></span>
+          <?php endif; ?>
           <a href="descargar-pdf.php?id=<?= $ent['id'] ?>" class="btn btn-sm btn-outline" target="_blank">⬇ PDF</a>
         </div>
       </div>

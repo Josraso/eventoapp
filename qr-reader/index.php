@@ -217,7 +217,7 @@ $total = (int)$stTotal->fetchColumn();
 
     <!-- Input manual -->
     <div style="margin-bottom:16px;">
-      <input type="text" id="input-manual" class="search-input" placeholder="O introduce el token manualmente..." autocomplete="off">
+      <input type="text" id="input-manual" class="search-input" placeholder="O introduce el código de 6 caracteres..." maxlength="6" style="text-transform:uppercase;letter-spacing:.1em;text-align:center;font-weight:700;" autocomplete="off">
     </div>
   </div>
 
@@ -235,8 +235,16 @@ $total = (int)$stTotal->fetchColumn();
   </div>
 </div>
 
-<script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.min.js" onerror="cargarJsQRFallback()"></script>
 <script>
+function cargarJsQRFallback() {
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js';
+    s.onerror = function () { mostrarErrorCamara('No se pudo cargar el lector de QR (jsQR). Comprueba la conexión a internet.'); };
+    s.onload = iniciarCamara;
+    document.head.appendChild(s);
+}
+
 var eventoId = <?= $eventoId ?>;
 var scanning = true;
 var lastToken = '';
@@ -247,32 +255,58 @@ var video = document.getElementById('qr-video');
 var canvas = document.createElement('canvas');
 var ctx = canvas.getContext('2d');
 
-navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-    .then(function(stream) {
-        video.srcObject = stream;
-        video.play();
-        requestAnimationFrame(scanFrame);
-    })
-    .catch(function(err) {
-        document.getElementById('qr-container').innerHTML =
-            '<p style="color:#888;text-align:center;padding:40px 20px;">Cámara no disponible.<br>Usa el campo manual.</p>';
-    });
+function mostrarErrorCamara(msg) {
+    document.getElementById('qr-container').innerHTML =
+        '<p style="color:#888;text-align:center;padding:40px 20px;">' + msg + '<br>Usa el campo manual.</p>';
+}
+
+function iniciarCamara() {
+    if (typeof jsQR !== 'function') {
+        mostrarErrorCamara('No se pudo cargar el lector de QR (jsQR).');
+        return;
+    }
+    if (!window.isSecureContext) {
+        mostrarErrorCamara('La cámara requiere acceso por HTTPS.');
+        return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        mostrarErrorCamara('Este navegador no permite acceder a la cámara.');
+        return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(function(stream) {
+            video.srcObject = stream;
+            video.play();
+            requestAnimationFrame(scanFrame);
+        })
+        .catch(function(err) {
+            mostrarErrorCamara('Cámara no disponible (' + (err.name || 'error') + ').');
+        });
+}
+
+// Si el script ya cargó síncronamente (caso normal), arranca; si no, onload del <script> lo hará.
+if (typeof jsQR === 'function') iniciarCamara();
+else document.querySelector('script[src*="jsqr"]').addEventListener('load', iniciarCamara);
 
 function scanFrame() {
     if (!scanning || cooldown) { requestAnimationFrame(scanFrame); return; }
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width  = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0);
-        var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        var code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
-        if (code && code.data) {
-            var token = extraerToken(code.data);
-            if (token && token !== lastToken) {
-                lastToken = token;
-                validarToken(token);
+    try {
+        if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+            canvas.width  = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+            var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            var code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+            if (code && code.data) {
+                var token = extraerToken(code.data);
+                if (token && token !== lastToken) {
+                    lastToken = token;
+                    validarToken(token);
+                }
             }
         }
+    } catch (e) {
+        console.error('Error escaneando frame:', e);
     }
     requestAnimationFrame(scanFrame);
 }
@@ -379,6 +413,9 @@ function renderListado(data) {
         html += '<div class="entrada-row">';
         html += '<div class="' + (e.usado ? 'dot-ok' : 'dot-no') + '"></div>';
         html += '<div style="flex:1"><div class="nombre">' + esc(e.nombre) + '</div>';
+        if (e.comprador && e.comprador !== e.nombre) {
+            html += '<div class="meta">Comprado por: ' + esc(e.comprador) + '</div>';
+        }
         html += '<div class="meta">' + esc(e.pedido) + (e.usado_at ? ' · ✓ ' + esc(e.usado_at) : '') + '</div></div>';
         if (e.usado) {
             html += '<button class="btn-desmarcar" onclick="marcarEntrada(' + e.id + ',\'desmarcar\')">Desmarcar</button>';
