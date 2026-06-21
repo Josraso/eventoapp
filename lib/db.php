@@ -307,6 +307,70 @@ function runMigrations(): void
             $pdo->exec("ALTER TABLE admin_users ADD COLUMN creado_por INT UNSIGNED NULL AFTER role");
         }
 
+        // Rol 'camarero' en admin_users (valida consumiciones de barra) y rol 'cajero' eliminado a favor de reutilizar admin/camarero
+        $col = $pdo->query("SHOW COLUMNS FROM admin_users LIKE 'role'")->fetch();
+        if ($col && stripos($col['Type'], "'camarero'") === false) {
+            $pdo->exec("ALTER TABLE admin_users MODIFY role ENUM('superadmin','admin','portero','camarero') DEFAULT 'admin'");
+        }
+
+        // Métodos de pago adicionales: efectivo (venta en caja) y gratis (consumiciones/entradas sin coste)
+        $col = $pdo->query("SHOW COLUMNS FROM inscripciones LIKE 'metodo_pago'")->fetch();
+        if ($col && (stripos($col['Type'], "'efectivo'") === false || stripos($col['Type'], "'gratis'") === false)) {
+            $pdo->exec("ALTER TABLE inscripciones MODIFY metodo_pago ENUM('stripe','redsys','bizum','transferencia','efectivo','gratis') NOT NULL");
+        }
+
+        // TABLA PRODUCTOS_CONSUMICION (productos de barra configurables por evento)
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `productos_consumicion` (
+            `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `evento_id` INT UNSIGNED NOT NULL,
+            `nombre` VARCHAR(150) NOT NULL,
+            `precio` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            `activo` TINYINT(1) DEFAULT 1,
+            `sort_order` INT UNSIGNED DEFAULT 0,
+            `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (`evento_id`) REFERENCES `eventos`(`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // TABLA CONSUMICIONES (un ticket = una consumición, no es saldo)
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `consumiciones` (
+            `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `evento_id` INT UNSIGNED NOT NULL,
+            `producto_id` INT UNSIGNED NOT NULL,
+            `inscripcion_id` INT UNSIGNED DEFAULT NULL,
+            `nombre_comprador` VARCHAR(200) DEFAULT NULL,
+            `origen` ENUM('online','caja') NOT NULL DEFAULT 'online',
+            `precio` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            `qr_token` VARCHAR(64) NOT NULL UNIQUE,
+            `codigo_corto` VARCHAR(8) NOT NULL UNIQUE,
+            `usado` TINYINT(1) DEFAULT 0,
+            `usado_at` DATETIME DEFAULT NULL,
+            `usado_por` INT UNSIGNED DEFAULT NULL,
+            `vendido_por` INT UNSIGNED DEFAULT NULL,
+            `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (`evento_id`) REFERENCES `eventos`(`id`) ON DELETE CASCADE,
+            FOREIGN KEY (`producto_id`) REFERENCES `productos_consumicion`(`id`) ON DELETE RESTRICT,
+            FOREIGN KEY (`inscripcion_id`) REFERENCES `inscripciones`(`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // Columna pdf_path en inscripciones (un único PDF combinado por pedido: entradas + consumiciones)
+        $col = $pdo->query("SHOW COLUMNS FROM inscripciones LIKE 'pdf_path'")->fetch();
+        if (!$col) {
+            $pdo->exec("ALTER TABLE inscripciones ADD COLUMN pdf_path VARCHAR(300) NULL");
+        }
+
+        // qr_logs: permitir loguear validaciones de consumiciones además de entradas
+        $col = $pdo->query("SHOW COLUMNS FROM qr_logs LIKE 'entrada_id'")->fetch();
+        if ($col && stripos($col['Null'], 'YES') === false) {
+            $pdo->exec("ALTER TABLE qr_logs MODIFY entrada_id INT UNSIGNED NULL");
+        }
+        $col = $pdo->query("SHOW COLUMNS FROM qr_logs LIKE 'consumicion_id'")->fetch();
+        if (!$col) {
+            $pdo->exec("ALTER TABLE qr_logs ADD COLUMN consumicion_id INT UNSIGNED NULL AFTER entrada_id");
+            try {
+                $pdo->exec("ALTER TABLE qr_logs ADD CONSTRAINT fk_qrlogs_consumicion FOREIGN KEY (consumicion_id) REFERENCES consumiciones(id) ON DELETE CASCADE");
+            } catch (Exception $e) {}
+        }
+
         // Auto-archivar eventos por fecha
         $pdo->exec("UPDATE eventos SET archivado=1, fecha_archivo=NOW()
             WHERE archivado=0 AND activo=1
