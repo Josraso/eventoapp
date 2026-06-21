@@ -329,6 +329,19 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
         <?php if ($evento['descripcion']): ?>
           <div class="card" style="font-size:14px;color:#444;line-height:1.7;"><?= $evento['descripcion'] ?></div>
         <?php endif; ?>
+
+        <?php if (!empty($productosBarra)): ?>
+        <div class="card">
+          <div class="card-title">🍹 Barra</div>
+          <p style="font-size:13px;color:#888;margin-bottom:12px;">Puedes añadir consumiciones al inscribirte para no pagar en efectivo el día del evento.</p>
+          <?php foreach ($productosBarra as $p): ?>
+            <div style="display:flex;justify-content:space-between;font-size:14px;padding:6px 0;border-bottom:1px solid #f5f5f5;">
+              <span><?= h($p['nombre']) ?></span>
+              <strong><?= number_format((float)$p['precio'], 2, ',', '.') ?> €</strong>
+            </div>
+          <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
       </div>
 
       <div class="evento-detail-sidebar">
@@ -351,12 +364,12 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
             <div class="alert alert-info" style="text-align:left;">✓ Ya estás inscrito en este evento. <a href="mi-cuenta.php">Ver mis entradas →</a></div>
             <a href="evento.php?slug=<?= urlencode($slug) ?>&step=inscripcion"
                class="btn btn-full btn-outline" style="margin-top:10px;">
-              ➕ Si quieres comprar más entradas, pincha aquí
+              <?= !empty($productosBarra) ? '➕ Comprar más entradas o consumiciones' : '➕ Si quieres comprar más entradas, pincha aquí' ?>
             </a>
           <?php else: ?>
             <a href="evento.php?slug=<?= urlencode($slug) ?>&step=<?= $isLogged ? 'inscripcion' : 'auth' ?>"
                class="btn btn-full">
-              🎫 Inscribirme en este evento
+              <?= (!empty($productosBarra) && $evento['es_gratuito']) ? '🎫 Inscribirme / comprar consumiciones' : '🎫 Inscribirme en este evento' ?>
             </a>
           <?php endif; ?>
         </div>

@@ -194,10 +194,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <?php endif; ?>
 </div>
 
+<style>
+.evento-tabs{display:flex;gap:4px;border-bottom:2px solid #e8e8e8;margin-bottom:20px;}
+.evento-tab{padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#888;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit;}
+.evento-tab.active{color:#1a1a1a;border-bottom-color:#6366f1;}
+.evento-tab-panel{display:none;}
+.evento-tab-panel.active{display:block;}
+</style>
+
+<div class="evento-tabs">
+  <button type="button" class="evento-tab active" onclick="showEventoTab('general',this)">General</button>
+  <button type="button" class="evento-tab" onclick="showEventoTab('barra',this)">🍹 Productos de barra<?= !empty($productos) ? ' ('.count($productos).')' : '' ?></button>
+</div>
+
 <form method="POST" enctype="multipart/form-data">
   <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
   <input type="hidden" name="action" value="guardar">
 
+  <div class="evento-tab-panel active" id="evento-tab-general">
   <div style="display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start;">
 
     <!-- COLUMNA PRINCIPAL -->
@@ -330,43 +344,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <button type="button" onclick="addCampo()" class="btn btn-sm btn-outline">+ Añadir campo</button>
       </div>
 
-      <!-- PRODUCTOS DE BARRA -->
-      <div class="card">
-        <div class="card-title">Productos de barra</div>
-        <p style="font-size:13px;color:#888;margin-bottom:16px;">Define las consumiciones (agua, cerveza, refrescos…) que se pueden vender online o en caja para este evento.</p>
-
-        <div id="productos-container">
-          <?php foreach ($productos as $pi => $producto): ?>
-          <div class="producto-block" style="border:1px solid #e4e4e8;border-radius:10px;padding:16px;margin-bottom:12px;position:relative;">
-            <div style="position:absolute;top:10px;right:10px;">
-              <button type="button" onclick="this.closest('.producto-block').remove()" class="btn btn-sm btn-danger" style="padding:4px 10px;font-size:11px;">✕</button>
-            </div>
-            <input type="hidden" name="productos[<?= $pi ?>][id]" value="<?= (int)$producto['id'] ?>">
-            <div class="field-row">
-              <div class="field">
-                <label>Nombre del producto</label>
-                <input type="text" name="productos[<?= $pi ?>][nombre]" value="<?= h($producto['nombre']) ?>" required>
-              </div>
-              <div class="field">
-                <label>Precio (€)</label>
-                <input type="number" name="productos[<?= $pi ?>][precio]" step="0.01" min="0" value="<?= h(number_format((float)$producto['precio'], 2, '.', '')) ?>">
-              </div>
-              <div class="field">
-                <label style="text-transform:none;font-size:13px;font-weight:normal;display:flex;align-items:center;gap:6px;">
-                  <input type="checkbox" name="productos[<?= $pi ?>][activo]" value="1" <?= $producto['activo']?'checked':'' ?>>
-                  Activo
-                </label>
-              </div>
-              <div class="field">
-                <label>Orden</label>
-                <input type="number" name="productos[<?= $pi ?>][sort]" value="<?= (int)$producto['sort_order'] ?>" style="max-width:60px;">
-              </div>
-            </div>
-          </div>
-          <?php endforeach; ?>
-        </div>
-        <button type="button" onclick="addProducto()" class="btn btn-sm btn-outline">+ Añadir producto</button>
-      </div>
     </div>
 
     <!-- COLUMNA LATERAL -->
@@ -441,11 +418,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
       </div>
 
-      <button type="submit" class="btn" style="width:100%;padding:14px;font-size:15px;">
-        💾 Guardar evento
-      </button>
     </div>
   </div>
+  </div><!-- /evento-tab-general -->
+
+  <div class="evento-tab-panel" id="evento-tab-barra">
+    <div class="card">
+      <div class="card-title">Productos de barra</div>
+      <p style="font-size:13px;color:#888;margin-bottom:16px;">Define las consumiciones (agua, cerveza, refrescos…) que se pueden vender online o en caja para este evento.</p>
+
+      <div id="productos-container">
+        <?php foreach ($productos as $pi => $producto): ?>
+        <div class="producto-block" style="border:1px solid #e4e4e8;border-radius:10px;padding:16px;margin-bottom:12px;position:relative;">
+          <div style="position:absolute;top:10px;right:10px;">
+            <button type="button" onclick="this.closest('.producto-block').remove()" class="btn btn-sm btn-danger" style="padding:4px 10px;font-size:11px;">✕</button>
+          </div>
+          <input type="hidden" name="productos[<?= $pi ?>][id]" value="<?= (int)$producto['id'] ?>">
+          <div class="field-row">
+            <div class="field">
+              <label>Nombre del producto</label>
+              <input type="text" name="productos[<?= $pi ?>][nombre]" value="<?= h($producto['nombre']) ?>" required>
+            </div>
+            <div class="field">
+              <label>Precio (€)</label>
+              <input type="number" name="productos[<?= $pi ?>][precio]" step="0.01" min="0" value="<?= h(number_format((float)$producto['precio'], 2, '.', '')) ?>">
+            </div>
+            <div class="field">
+              <label style="text-transform:none;font-size:13px;font-weight:normal;display:flex;align-items:center;gap:6px;">
+                <input type="checkbox" name="productos[<?= $pi ?>][activo]" value="1" <?= $producto['activo']?'checked':'' ?>>
+                Activo
+              </label>
+            </div>
+            <div class="field">
+              <label>Orden</label>
+              <input type="number" name="productos[<?= $pi ?>][sort]" value="<?= (int)$producto['sort_order'] ?>" style="max-width:60px;">
+            </div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      <button type="button" onclick="addProducto()" class="btn btn-sm btn-outline">+ Añadir producto</button>
+    </div>
+  </div><!-- /evento-tab-barra -->
+
+  <button type="submit" class="btn" style="width:100%;padding:14px;font-size:15px;margin-top:4px;">
+    💾 Guardar evento
+  </button>
 </form>
 
 <script src="<?= h($base) ?>/admin/assets/vendor/tinymce/tinymce.min.js"></script>
@@ -459,6 +477,13 @@ tinymce.init({
     branding: false,
     license_key: 'gpl'
 });
+
+function showEventoTab(id, btn) {
+    document.querySelectorAll('.evento-tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.evento-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('evento-tab-' + id).classList.add('active');
+    btn.classList.add('active');
+}
 
 var campoIdx = <?= count($campos) ?>;
 

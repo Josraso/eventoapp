@@ -253,6 +253,7 @@ foreach ($inscripciones as $ins) {
                   <div class="entrada-token">QR: <?= h(substr($ent['qr_token'], 0, 16)) ?>...<?= !empty($ent['codigo_corto']) ? ' &middot; Código: <strong>' . h($ent['codigo_corto']) . '</strong>' : '' ?></div>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                  <button type="button" class="btn btn-sm btn-success" onclick="mostrarQR('entrada', <?= $ent['id'] ?>, '<?= h(addslashes($ent['nombre_asistente'])) ?>')">📱 Mostrar QR</button>
                   <a href="descargar-entrada.php?id=<?= $ent['id'] ?>" target="_blank" class="btn btn-sm btn-outline">⬇ Descargar</a>
                   <button class="btn btn-sm" onclick="toggleEnviar(<?= $ent['id'] ?>)">📧 Enviar</button>
                 </div>
@@ -294,6 +295,9 @@ foreach ($inscripciones as $ins) {
                     <?php endif; ?>
                   <?php else: ?>
                     <span class="badge badge-gray">Pendiente</span>
+                    <div style="margin-top:6px;">
+                      <button type="button" class="btn btn-sm btn-success" onclick="mostrarQR('consumicion', <?= $cons['id'] ?>, '<?= h(addslashes($cons['producto_nombre'])) ?>')">📱 Mostrar QR</button>
+                    </div>
                   <?php endif; ?>
                 </div>
               </div>
@@ -336,6 +340,14 @@ foreach ($inscripciones as $ins) {
   </div>
 </main>
 
+<div id="qrModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;padding:24px;max-width:340px;width:90%;text-align:center;">
+    <div id="qrModalTitulo" style="font-size:15px;font-weight:700;margin-bottom:14px;"></div>
+    <img id="qrModalImg" src="" style="width:100%;max-width:280px;border-radius:8px;">
+    <button type="button" class="btn btn-sm btn-outline" style="margin-top:16px;width:100%;" onclick="cerrarQR()">Cerrar</button>
+  </div>
+</div>
+
 <script>
 function showTab(id, btn) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -346,6 +358,14 @@ function showTab(id, btn) {
 function toggleEnviar(id) {
     var el = document.getElementById('enviar-' + id);
     el.classList.toggle('open');
+}
+function mostrarQR(tipo, id, nombre) {
+    document.getElementById('qrModalTitulo').textContent = nombre;
+    document.getElementById('qrModalImg').src = 'qr-imagen.php?tipo=' + tipo + '&id=' + id;
+    document.getElementById('qrModal').style.display = 'flex';
+}
+function cerrarQR() {
+    document.getElementById('qrModal').style.display = 'none';
 }
 </script>
 </body>
