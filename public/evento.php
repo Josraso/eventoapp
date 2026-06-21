@@ -124,6 +124,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if (!in_array($metodoPago, $metodosActivos))
             $error = 'Método de pago no válido.';
 
+        $yoAsisto = isset($_POST['yo_asisto']);
+
         $asistentes = [];
         for ($i = 1; $i <= $numPersonas; $i++) {
             $nombre_asi = trim($_POST["asistente_{$i}_nombre"] ?? '');
@@ -139,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
                 $camposAsi[$campo['nombre']] = $val;
             }
-            $asistentes[] = ['nombre' => $nombre_asi, 'campos' => $camposAsi, 'es_titular' => ($i === 1)];
+            $asistentes[] = ['nombre' => $nombre_asi, 'campos' => $camposAsi, 'es_titular' => ($i === 1 && $yoAsisto)];
         }
 
         if (!$error) {
@@ -415,7 +417,13 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
               <option value="<?= $i ?>" <?= ($i === 1) ? 'selected' : '' ?>><?= $i ?> persona<?= $i > 1 ? 's' : '' ?></option>
             <?php endfor; ?>
           </select>
-          <p class="hint">Si tú asistes, inclúyete. El primero se pre-rellena con tus datos.</p>
+          <p class="hint">Marca la casilla de abajo si tú también vas a asistir.</p>
+        </div>
+        <div class="field">
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;text-transform:none;font-weight:normal;">
+            <input type="checkbox" name="yo_asisto" id="yo_asisto" checked>
+            Yo también asisto (rellena la persona 1 con mis datos)
+          </label>
         </div>
       </div>
 
@@ -427,11 +435,11 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
         ?>
         <div class="card asistente-block <?= $esTitular ? 'titular' : '' ?>" id="asistente_<?= $i ?>" style="<?= $display ?>">
           <div class="asistente-label">
-            <span><?= $esTitular ? '👤 Persona 1 (tú, si asistes)' : "👤 Persona {$i}" ?></span>
+            <span><?= $esTitular ? '👤 Persona 1' : "👤 Persona {$i}" ?></span>
           </div>
           <div class="field">
             <label>Nombre completo *</label>
-            <input type="text" name="asistente_<?= $i ?>_nombre"
+            <input type="text" name="asistente_<?= $i ?>_nombre" id="asistente_<?= $i ?>_nombre_input"
                    value="<?= $esTitular ? h($user['name']) : '' ?>"
                    <?= $i > 1 ? 'disabled' : '' ?>>
           </div>
@@ -521,6 +529,7 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
     var precioUnitario = <?= (float)$evento['precio'] ?>;
     var esGratis = <?= $evento['es_gratuito'] ? 'true' : 'false' ?>;
     var maxPersonas = <?= min($maxPlazas, 20) ?>;
+    var nombreUsuario = <?= json_encode($user['name']) ?>;
 
     function actualizarPersonas(n) {
         n = parseInt(n);
@@ -528,13 +537,10 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
             var block = document.getElementById('asistente_' + i);
             if (!block) continue;
             block.style.display = (i <= n) ? '' : 'none';
-            // Habilitar/deshabilitar inputs
+            // Habilitar/deshabilitar inputs (el campo de nombre de la persona 1 lo controla "yo_asisto")
             block.querySelectorAll('input,select,textarea').forEach(function(el) {
-                if (i <= n) {
-                    el.disabled = false;
-                } else {
-                    el.disabled = true;
-                }
+                if (el.id === 'asistente_1_nombre_input') return;
+                el.disabled = (i > n);
             });
         }
         if (!esGratis) {
@@ -544,6 +550,20 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
         }
     }
     actualizarPersonas(1);
+
+    function toggleYoAsisto() {
+        var chk = document.getElementById('yo_asisto');
+        var input = document.getElementById('asistente_1_nombre_input');
+        if (chk.checked) {
+            input.value = nombreUsuario;
+            input.readOnly = true;
+        } else {
+            input.value = '';
+            input.readOnly = false;
+        }
+    }
+    document.getElementById('yo_asisto').addEventListener('change', toggleYoAsisto);
+    toggleYoAsisto();
 
     document.getElementById('formInscripcion').addEventListener('submit', function() {
         var btn = document.getElementById('btnInscribir');
