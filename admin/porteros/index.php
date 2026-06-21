@@ -4,8 +4,28 @@ require_once __DIR__ . '/../../lib/Auth.php';
 
 Auth::adminCheck('superadmin','admin');
 $base = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
+$esSuperAdmin = Auth::adminRole() === 'superadmin';
 
 $error = '';
+
+function porteroEsPropio(int $pid): bool
+{
+    if (Auth::adminRole() === 'superadmin') return true;
+    $st = db()->prepare("SELECT COUNT(*) FROM admin_users WHERE id=? AND role='portero' AND creado_por=?");
+    $st->execute([$pid, Auth::adminId()]);
+    return (int)$st->fetchColumn() > 0;
+}
+
+// Eventos asignables: solo los propios para un admin normal, todos para superadmin
+function eventosAsignables(): array
+{
+    if (Auth::adminRole() === 'superadmin') {
+        return db()->query("SELECT id, nombre FROM eventos WHERE activo=1 AND archivado=0 ORDER BY nombre")->fetchAll();
+    }
+    $st = db()->prepare("SELECT id, nombre FROM eventos WHERE activo=1 AND archivado=0 AND admin_id=? ORDER BY nombre");
+    $st->execute([Auth::adminId()]);
+    return $st->fetchAll();
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Auth::checkCsrf();
@@ -16,15 +36,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name     = trim($_POST['name'] ?? '');
         $email    = trim($_POST['email'] ?? '');
         $pass     = $_POST['password'] ?? '';
-        $eids     = array_map('intval', $_POST['eventos'] ?? []);
+        $eidsRaw  = array_map('intval', $_POST['eventos'] ?? []);
+        $eidsOk   = array_column(eventosAsignables(), 'id');
+        $eids     = array_intersect($eidsRaw, $eidsOk);
         if (!$username || !$pass) { $error = 'Usuario y contraseña son obligatorios.'; }
         else {
             $chk = db()->prepare('SELECT id FROM admin_users WHERE username=?');
             $chk->execute([$username]);
             if ($chk->fetch()) { $error = 'Ese usuario ya existe.'; }
             else {
-                db()->prepare('INSERT INTO admin_users (username,name,email,password_hash,role) VALUES(?,?,?,?,?)')
-                   ->execute([$username,$name,$email,password_hash($pass,PASSWORD_BCRYPT),'portero']);
+                db()->prepare('INSERT INTO admin_users (username,name,email,password_hash,role,creado_por) VALUES(?,?,?,?,?,?)')
+                   ->execute([$username,$name,$email,password_hash($pass,PASSWORD_BCRYPT),'portero',Auth::adminId()]);
                 $pid = (int)db()->lastInsertId();
                 foreach ($eids as $eid) {
                     db()->prepare('INSERT IGNORE INTO portero_eventos (admin_id,evento_id) VALUES(?,?)')->execute([$pid,$eid]);
@@ -35,18 +57,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     if ($action === 'toggle_activo') {
-        db()->prepare('UPDATE admin_users SET active=NOT active WHERE id=? AND role="portero"')->execute([(int)$_POST['pid']]);
-        flash('ok','Estado actualizado.');
+        $pid = (int)$_POST['pid'];
+        if (porteroEsPropio($pid)) {
+            db()->prepare('UPDATE admin_users SET active=NOT active WHERE id=? AND role="portero"')->execute([$pid]);
+            flash('ok','Estado actualizado.');
+        } else {
+            flash('error','No tienes permiso sobre este portero.');
+        }
         header('Location: ' . $base . '/admin/porteros/index.php'); exit;
     }
     if ($action === 'eliminar') {
-        db()->prepare('DELETE FROM admin_users WHERE id=? AND role="portero"')->execute([(int)$_POST['pid']]);
-        flash('ok','Portero eliminado.');
+        $pid = (int)$_POST['pid'];
+        if (porteroEsPropio($pid)) {
+            db()->prepare('DELETE FROM admin_users WHERE id=? AND role="portero"')->execute([$pid]);
+            flash('ok','Portero eliminado.');
+        } else {
+            flash('error','No tienes permiso sobre este portero.');
+        }
         header('Location: ' . $base . '/admin/porteros/index.php'); exit;
     }
     if ($action === 'asignar_eventos') {
-        $pid  = (int)$_POST['pid'];
-        $eids = array_map('intval', $_POST['eventos'] ?? []);
+        $pid = (int)$_POST['pid'];
+        if (!porteroEsPropio($pid)) {
+            flash('error','No tienes permiso sobre este portero.');
+            header('Location: ' . $base . '/admin/porteros/index.php'); exit;
+        }
+        $eidsRaw = array_map('intval', $_POST['eventos'] ?? []);
+        $eidsOk  = array_column(eventosAsignables(), 'id');
+        $eids    = array_intersect($eidsRaw, $eidsOk);
         db()->prepare('DELETE FROM portero_eventos WHERE admin_id=?')->execute([$pid]);
         foreach ($eids as $eid) {
             db()->prepare('INSERT IGNORE INTO portero_eventos (admin_id,evento_id) VALUES(?,?)')->execute([$pid,$eid]);
@@ -56,14 +94,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$porteros = db()->query("SELECT p.*, GROUP_CONCAT(e.nombre ORDER BY e.nombre SEPARATOR ', ') as eventos_asignados
-    FROM admin_users p
-    LEFT JOIN portero_eventos pe ON pe.admin_id=p.id
-    LEFT JOIN eventos e ON e.id=pe.evento_id
-    WHERE p.role='portero'
-    GROUP BY p.id ORDER BY p.username")->fetchAll();
+$porteros = $esSuperAdmin
+    ? db()->query("SELECT p.*, GROUP_CONCAT(e.nombre ORDER BY e.nombre SEPARATOR ', ') as eventos_asignados
+        FROM admin_users p
+        LEFT JOIN portero_eventos pe ON pe.admin_id=p.id
+        LEFT JOIN eventos e ON e.id=pe.evento_id
+        WHERE p.role='portero'
+        GROUP BY p.id ORDER BY p.username")->fetchAll()
+    : (function() {
+        $st = db()->prepare("SELECT p.*, GROUP_CONCAT(e.nombre ORDER BY e.nombre SEPARATOR ', ') as eventos_asignados
+            FROM admin_users p
+            LEFT JOIN portero_eventos pe ON pe.admin_id=p.id
+            LEFT JOIN eventos e ON e.id=pe.evento_id
+            WHERE p.role='portero' AND p.creado_por=?
+            GROUP BY p.id ORDER BY p.username");
+        $st->execute([Auth::adminId()]);
+        return $st->fetchAll();
+    })();
 
-$eventos = db()->query("SELECT id, nombre FROM eventos WHERE activo=1 AND archivado=0 ORDER BY nombre")->fetchAll();
+$eventos = eventosAsignables();
 $pidEditar = (int)($_GET['editar'] ?? 0);
 
 $pageTitle = 'Porteros';

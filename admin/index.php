@@ -2,15 +2,22 @@
 $pageTitle = 'Dashboard';
 require_once __DIR__ . '/_header.php';
 
+// Aislamiento multi-admin: un admin (no superadmin) solo ve estadísticas de sus propios eventos
+$esSuperAdmin = Auth::adminRole() === 'superadmin';
+$evCond  = $esSuperAdmin ? '1=1' : 'e.admin_id=' . (int)Auth::adminId();
+$evCondI = $esSuperAdmin ? '1=1' : 'i.evento_id IN (SELECT id FROM eventos WHERE admin_id=' . (int)Auth::adminId() . ')';
+$evCondE = $esSuperAdmin ? '1=1' : 'e.evento_id IN (SELECT id FROM eventos WHERE admin_id=' . (int)Auth::adminId() . ')';
+$usuariosSql = $esSuperAdmin ? 'COUNT(*) FROM users' : "COUNT(DISTINCT i.user_id) FROM inscripciones i WHERE $evCondI";
+
 $stats = db()->query("
     SELECT
-        (SELECT COUNT(*) FROM eventos WHERE activo=1 AND archivado=0) AS eventos_activos,
-        (SELECT COUNT(*) FROM inscripciones WHERE estado_pago='pagado') AS inscripciones_pagadas,
-        (SELECT COUNT(*) FROM inscripciones WHERE estado_pago='pendiente') AS inscripciones_pendientes,
-        (SELECT COUNT(*) FROM users) AS usuarios,
-        (SELECT COALESCE(SUM(precio_total),0) FROM inscripciones WHERE estado_pago='pagado') AS total_ingresos,
-        (SELECT COUNT(*) FROM entradas WHERE usado=1) AS entradas_validadas,
-        (SELECT COUNT(*) FROM entradas e JOIN inscripciones i ON i.id=e.inscripcion_id WHERE i.estado_pago='pagado') AS entradas_total
+        (SELECT COUNT(*) FROM eventos e WHERE activo=1 AND archivado=0 AND $evCond) AS eventos_activos,
+        (SELECT COUNT(*) FROM inscripciones i WHERE estado_pago='pagado' AND $evCondI) AS inscripciones_pagadas,
+        (SELECT COUNT(*) FROM inscripciones i WHERE estado_pago='pendiente' AND $evCondI) AS inscripciones_pendientes,
+        (SELECT $usuariosSql) AS usuarios,
+        (SELECT COALESCE(SUM(precio_total),0) FROM inscripciones i WHERE estado_pago='pagado' AND $evCondI) AS total_ingresos,
+        (SELECT COUNT(*) FROM entradas e WHERE usado=1 AND $evCondE) AS entradas_validadas,
+        (SELECT COUNT(*) FROM entradas e JOIN inscripciones i ON i.id=e.inscripcion_id WHERE i.estado_pago='pagado' AND $evCondE) AS entradas_total
 ")->fetch();
 
 $ultimasIns = db()->query("
@@ -18,6 +25,7 @@ $ultimasIns = db()->query("
     FROM inscripciones i
     JOIN eventos e ON e.id=i.evento_id
     JOIN users u ON u.id=i.user_id
+    WHERE $evCond
     ORDER BY i.created_at DESC LIMIT 8
 ")->fetchAll();
 
@@ -27,6 +35,7 @@ $topEventos = db()->query("
     FROM eventos e
     LEFT JOIN inscripciones i ON i.evento_id=e.id AND i.estado_pago='pagado'
     LEFT JOIN entradas ent ON ent.inscripcion_id=i.id
+    WHERE $evCond
     GROUP BY e.id, e.nombre
     ORDER BY pagados DESC LIMIT 5
 ")->fetchAll();

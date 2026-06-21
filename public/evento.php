@@ -288,8 +288,12 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
         <?php if ($evento['fecha_evento']): ?>
           <span style="font-size:13px;color:#666;">📅 <?= date('d/m/Y H:i', strtotime($evento['fecha_evento'])) ?></span>
         <?php endif; ?>
-        <?php if ($evento['lugar']): ?>
-          <span style="font-size:13px;color:#666;">📍 <?= h($evento['lugar']) ?></span>
+        <?php if ($evento['lugar']):
+          $mapsUrl = $evento['lugar_url'] ?: ('https://www.google.com/maps/search/?api=1&query=' . urlencode($evento['lugar']));
+        ?>
+          <span style="font-size:13px;color:#666;">📍 <?= h($evento['lugar']) ?>
+            <a href="<?= h($mapsUrl) ?>" target="_blank" rel="noopener" style="margin-left:4px;">(Ver en el mapa)</a>
+          </span>
         <?php endif; ?>
         <?php if (!$evento['es_gratuito']): ?>
           <span style="font-size:13px;color:#1a1a1a;font-weight:700;">💶 <?= number_format((float)$evento['precio'], 2, ',', '.') ?> € / persona</span>
@@ -302,7 +306,7 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
       </div>
 
       <?php if ($evento['descripcion']): ?>
-        <p style="font-size:14px;color:#444;line-height:1.7;margin-bottom:20px;"><?= nl2br(h($evento['descripcion'])) ?></p>
+        <div style="font-size:14px;color:#444;line-height:1.7;margin-bottom:20px;"><?= $evento['descripcion'] ?></div>
       <?php endif; ?>
 
       <?php if (!$disponible): ?>

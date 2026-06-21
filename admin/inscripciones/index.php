@@ -4,12 +4,26 @@ require_once __DIR__ . '/../../lib/Auth.php';
 
 Auth::adminCheck('superadmin', 'admin');
 $base = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
+$esSuperAdmin = Auth::adminRole() === 'superadmin';
+
+function inscripcionEsPropia(int $insId): bool
+{
+    if (Auth::adminRole() === 'superadmin') return true;
+    $st = db()->prepare('SELECT COUNT(*) FROM inscripciones i JOIN eventos e ON e.id=i.evento_id WHERE i.id=? AND e.admin_id=?');
+    $st->execute([$insId, Auth::adminId()]);
+    return (int)$st->fetchColumn() > 0;
+}
 
 // ── CONFIRMAR PAGO MANUAL ─────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Auth::checkCsrf();
     $insId = (int)($_POST['inscripcion_id'] ?? 0);
     $action = $_POST['action'] ?? '';
+
+    if (!inscripcionEsPropia($insId)) {
+        flash('error', 'No tienes permiso sobre este pedido.');
+        header('Location: ' . $base . '/admin/inscripciones/index.php'); exit;
+    }
 
     if ($action === 'confirmar_pago') {
         $stIns = db()->prepare('SELECT i.*, e.nombre as evento_nombre FROM inscripciones i JOIN eventos e ON e.id=i.evento_id WHERE i.id=?');
@@ -67,6 +81,7 @@ $perPage        = 30;
 $where  = ['1=1'];
 $params = [];
 
+if (!$esSuperAdmin) { $where[] = 'e.admin_id=?'; $params[] = Auth::adminId(); }
 if ($eventoFiltro) { $where[] = 'i.evento_id=?'; $params[] = $eventoFiltro; }
 if ($estadoFiltro) {
     $where[] = 'i.estado_pago=?'; $params[] = $estadoFiltro;
@@ -83,7 +98,7 @@ if ($q) {
 $whereStr = implode(' AND ', $where);
 
 // Total
-$stTotal = db()->prepare("SELECT COUNT(*) FROM inscripciones i JOIN users u ON u.id=i.user_id WHERE $whereStr");
+$stTotal = db()->prepare("SELECT COUNT(*) FROM inscripciones i JOIN eventos e ON e.id=i.evento_id JOIN users u ON u.id=i.user_id WHERE $whereStr");
 $stTotal->execute($params);
 $total = (int)$stTotal->fetchColumn();
 $totalPags = max(1, ceil($total / $perPage));
@@ -105,12 +120,19 @@ $stIns->execute($paramsPag);
 $inscripciones = $stIns->fetchAll();
 
 // Select de eventos para filtro
-$eventos = db()->query("SELECT id, nombre FROM eventos ORDER BY nombre ASC")->fetchAll();
+$eventos = $esSuperAdmin
+    ? db()->query("SELECT id, nombre FROM eventos ORDER BY nombre ASC")->fetchAll()
+    : (function() {
+        $st = db()->prepare("SELECT id, nombre FROM eventos WHERE admin_id=? ORDER BY nombre ASC");
+        $st->execute([Auth::adminId()]);
+        return $st->fetchAll();
+    })();
 
 // Totales resumen
 $stResumen = db()->prepare("
     SELECT estado_pago, COUNT(*) as cnt, SUM(precio_total) as suma
     FROM inscripciones i
+    JOIN eventos e ON e.id=i.evento_id
     JOIN users u ON u.id=i.user_id
     WHERE $whereStr
     GROUP BY estado_pago

@@ -79,8 +79,8 @@ $flash    = getFlash();
                 <span>📍 <?= h($ev['lugar']) ?></span>
               <?php endif; ?>
             </div>
-            <?php if ($ev['descripcion']): ?>
-              <p style="font-size:13px;color:#666;margin-bottom:12px;line-height:1.5;"><?= h(substr($ev['descripcion'], 0, 100)) . (strlen($ev['descripcion']) > 100 ? '...' : '') ?></p>
+            <?php $descPlana = trim(html_entity_decode(strip_tags($ev['descripcion'] ?? ''))); if ($descPlana): ?>
+              <p style="font-size:13px;color:#666;margin-bottom:12px;line-height:1.5;"><?= h(substr($descPlana, 0, 100)) . (strlen($descPlana) > 100 ? '...' : '') ?></p>
             <?php endif; ?>
             <div class="evento-card-footer">
               <div class="evento-precio <?= $ev['es_gratuito'] ? 'evento-precio-gratis' : '' ?>">

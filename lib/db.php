@@ -301,6 +301,12 @@ function runMigrations(): void
             $pdo->exec("ALTER TABLE inscripciones MODIFY estado_pago ENUM('pendiente','pagado','cancelado','reembolsado','fallido') DEFAULT 'pendiente'");
         }
 
+        // Columna creado_por en admin_users (qué admin creó cada portero, para aislamiento multi-admin)
+        $col = $pdo->query("SHOW COLUMNS FROM admin_users LIKE 'creado_por'")->fetch();
+        if (!$col) {
+            $pdo->exec("ALTER TABLE admin_users ADD COLUMN creado_por INT UNSIGNED NULL AFTER role");
+        }
+
         // Auto-archivar eventos por fecha
         $pdo->exec("UPDATE eventos SET archivado=1, fecha_archivo=NOW()
             WHERE archivado=0 AND activo=1

@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../lib/Auth.php';
 
 Auth::adminCheck('superadmin', 'admin');
 
+$adminRole = Auth::adminRole();
 $id     = (int)($_GET['id'] ?? 0);
 $evento = null;
 $campos = [];
@@ -14,11 +15,18 @@ if ($id) {
     $st->execute([$id]);
     $evento = $st->fetch();
     if (!$evento) { flash('error', 'Evento no encontrado.'); header('Location: ' . $base . '/admin/eventos/index.php'); exit; }
+    if ($adminRole !== 'superadmin' && (int)$evento['admin_id'] !== Auth::adminId()) {
+        flash('error', 'No tienes permiso sobre este evento.'); header('Location: ' . $base . '/admin/eventos/index.php'); exit;
+    }
 
     $stC = db()->prepare('SELECT * FROM evento_campos WHERE evento_id=? ORDER BY sort_order ASC');
     $stC->execute([$id]);
     $campos = $stC->fetchAll();
 }
+
+$listaAdmins = $adminRole === 'superadmin'
+    ? db()->query("SELECT id, name, username FROM admin_users WHERE role IN ('admin','superadmin') ORDER BY name ASC")->fetchAll()
+    : [];
 
 $pageTitle = $evento ? 'Editar evento: ' . $evento['nombre'] : 'Nuevo evento';
 $error     = '';
@@ -35,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $descripcion = trim($_POST['descripcion'] ?? '');
         $fecha_evento = $_POST['fecha_evento'] ?: null;
         $lugar       = trim($_POST['lugar'] ?? '');
+        $lugar_url   = trim($_POST['lugar_url'] ?? '');
         $precio      = (float)str_replace(',', '.', $_POST['precio'] ?? '0');
         $es_gratuito = isset($_POST['es_gratuito']) ? 1 : 0;
         $max_inscritos = (int)($_POST['max_inscritos'] ?? 0) ?: null;
@@ -45,6 +54,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $activo      = isset($_POST['activo']) ? 1 : 0;
         $archivado   = isset($_POST['archivado']) ? 1 : 0;
         $sort_order  = (int)($_POST['sort_order'] ?? 0);
+        // Asignación de admin propietario: solo el superadmin puede reasignar;
+        // un admin normal siempre es propietario de los eventos que crea.
+        if ($adminRole === 'superadmin') {
+            $admin_id_evento = (int)($_POST['admin_id'] ?? 0) ?: null;
+        } else {
+            $admin_id_evento = $id ? (int)$evento['admin_id'] : Auth::adminId();
+        }
 
         if (!$nombre) $error = 'El nombre es obligatorio.';
         elseif (!$slug) $error = 'El slug es obligatorio.';
@@ -75,11 +91,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$error) {
             if ($id) {
-                db()->prepare('UPDATE eventos SET nombre=?,slug=?,descripcion=?,imagen=?,fecha_evento=?,lugar=?,precio=?,es_gratuito=?,max_inscritos=?,fecha_limite_inscripcion=?,metodos_pago=?,campo_qr_extra=?,activo=?,archivado=?,sort_order=?,updated_at=NOW() WHERE id=?')
-                   ->execute([$nombre,$slug,$descripcion,$imagen,$fecha_evento,$lugar,$precio,$es_gratuito,$max_inscritos,$fecha_limite,$metodos_str,$campo_qr,$activo,$archivado,$sort_order,$id]);
+                db()->prepare('UPDATE eventos SET nombre=?,slug=?,descripcion=?,imagen=?,fecha_evento=?,lugar=?,lugar_url=?,precio=?,es_gratuito=?,max_inscritos=?,fecha_limite_inscripcion=?,metodos_pago=?,campo_qr_extra=?,activo=?,archivado=?,sort_order=?,admin_id=?,updated_at=NOW() WHERE id=?')
+                   ->execute([$nombre,$slug,$descripcion,$imagen,$fecha_evento,$lugar,$lugar_url,$precio,$es_gratuito,$max_inscritos,$fecha_limite,$metodos_str,$campo_qr,$activo,$archivado,$sort_order,$admin_id_evento,$id]);
             } else {
-                db()->prepare('INSERT INTO eventos (nombre,slug,descripcion,imagen,fecha_evento,lugar,precio,es_gratuito,max_inscritos,fecha_limite_inscripcion,metodos_pago,campo_qr_extra,activo,sort_order) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-                   ->execute([$nombre,$slug,$descripcion,$imagen,$fecha_evento,$lugar,$precio,$es_gratuito,$max_inscritos,$fecha_limite,$metodos_str,$campo_qr,$activo,$sort_order]);
+                db()->prepare('INSERT INTO eventos (nombre,slug,descripcion,imagen,fecha_evento,lugar,lugar_url,precio,es_gratuito,max_inscritos,fecha_limite_inscripcion,metodos_pago,campo_qr_extra,activo,sort_order,admin_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+                   ->execute([$nombre,$slug,$descripcion,$imagen,$fecha_evento,$lugar,$lugar_url,$precio,$es_gratuito,$max_inscritos,$fecha_limite,$metodos_str,$campo_qr,$activo,$sort_order,$admin_id_evento]);
                 $id = (int)db()->lastInsertId();
             }
 
@@ -160,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <div class="field">
           <label>Descripción</label>
-          <textarea name="descripcion" rows="5"><?= h($evento['descripcion'] ?? '') ?></textarea>
+          <textarea name="descripcion" id="descripcion-editor" rows="5"><?= h($evento['descripcion'] ?? '') ?></textarea>
         </div>
         <div class="field-row">
           <div class="field">
@@ -174,11 +190,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                    value="<?= $evento['fecha_limite_inscripcion'] ? date('Y-m-d\TH:i', strtotime($evento['fecha_limite_inscripcion'])) : '' ?>">
           </div>
         </div>
-        <div class="field">
-          <label>Lugar / Sede</label>
-          <input type="text" name="lugar" value="<?= h($evento['lugar'] ?? '') ?>">
+        <div class="field-row">
+          <div class="field">
+            <label>Lugar / Sede</label>
+            <input type="text" name="lugar" value="<?= h($evento['lugar'] ?? '') ?>">
+          </div>
+          <div class="field">
+            <label>Enlace a Google Maps (opcional)</label>
+            <input type="url" name="lugar_url" value="<?= h($evento['lugar_url'] ?? '') ?>" placeholder="https://maps.google.com/...">
+            <p class="hint">Si lo dejas en blanco, se generará automáticamente a partir del texto del lugar.</p>
+          </div>
         </div>
       </div>
+
+      <?php if ($adminRole === 'superadmin'): ?>
+      <div class="card">
+        <div class="card-title">Propietario del evento</div>
+        <div class="field">
+          <label>Administrador asignado</label>
+          <select name="admin_id">
+            <option value="">— Sin asignar —</option>
+            <?php foreach ($listaAdmins as $a): ?>
+              <option value="<?= $a['id'] ?>" <?= (int)($evento['admin_id'] ?? 0)===$a['id']?'selected':'' ?>>
+                <?= h($a['name'] ?: $a['username']) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+          <p class="hint">Solo el administrador asignado (y el superadmin) podrá ver y gestionar este evento.</p>
+        </div>
+      </div>
+      <?php endif; ?>
 
       <!-- CAMPOS PERSONALIZADOS -->
       <div class="card">
@@ -326,7 +367,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </div>
 </form>
 
+<script src="<?= h($base) ?>/admin/assets/vendor/tinymce/tinymce.min.js"></script>
 <script>
+tinymce.init({
+    selector: '#descripcion-editor',
+    height: 280,
+    menubar: false,
+    plugins: 'lists link',
+    toolbar: 'bold italic underline | bullist numlist | link | removeformat',
+    branding: false,
+    license_key: 'gpl'
+});
+
 var campoIdx = <?= count($campos) ?>;
 
 function generarSlug(nombre) {

@@ -11,6 +11,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $entId  = (int)($_POST['entrada_id'] ?? 0);
     $action = $_POST['action'] ?? '';
 
+    if (Auth::adminRole() !== 'superadmin') {
+        $stOwn = db()->prepare('SELECT COUNT(*) FROM entradas e JOIN eventos ev ON ev.id=e.evento_id WHERE e.id=? AND ev.admin_id=?');
+        $stOwn->execute([$entId, Auth::adminId()]);
+        if ((int)$stOwn->fetchColumn() === 0) {
+            flash('error', 'No tienes permiso sobre esta entrada.');
+            header('Location: ' . $base . '/admin/inscritos/index.php'); exit;
+        }
+    }
+
     if ($action === 'marcar') {
         db()->prepare('UPDATE entradas SET usado=1, usado_at=NOW(), usado_por=? WHERE id=?')
            ->execute([Auth::adminId(), $entId]);
@@ -39,9 +48,12 @@ $q            = trim($_GET['q'] ?? '');
 $pagina       = max(1, (int)($_GET['p'] ?? 1));
 $perPage      = 40;
 
+$esSuperAdmin = Auth::adminRole() === 'superadmin';
+
 $where  = ["i.estado_pago='pagado'"];
 $params = [];
 
+if (!$esSuperAdmin) { $where[] = 'ev.admin_id=?'; $params[] = Auth::adminId(); }
 if ($eventoFiltro) { $where[] = 'e.evento_id=?'; $params[] = $eventoFiltro; }
 if ($estadoFiltro === 'entrado')    $where[] = 'e.usado=1';
 if ($estadoFiltro === 'no_entrado') $where[] = 'e.usado=0';
@@ -55,6 +67,7 @@ $whereStr = implode(' AND ', $where);
 $stTotal = db()->prepare("
     SELECT COUNT(*) FROM entradas e
     JOIN inscripciones i ON i.id = e.inscripcion_id
+    JOIN eventos ev ON ev.id = e.evento_id
     JOIN users u ON u.id = i.user_id
     WHERE $whereStr
 ");
@@ -77,7 +90,13 @@ $stEnt = db()->prepare("
 $stEnt->execute($paramsPag);
 $entradas = $stEnt->fetchAll();
 
-$eventos = db()->query("SELECT id, nombre FROM eventos ORDER BY nombre ASC")->fetchAll();
+$eventos = $esSuperAdmin
+    ? db()->query("SELECT id, nombre FROM eventos ORDER BY nombre ASC")->fetchAll()
+    : (function() {
+        $st = db()->prepare("SELECT id, nombre FROM eventos WHERE admin_id=? ORDER BY nombre ASC");
+        $st->execute([Auth::adminId()]);
+        return $st->fetchAll();
+    })();
 
 $stResumen = db()->prepare("
     SELECT
@@ -86,6 +105,7 @@ $stResumen = db()->prepare("
         COUNT(*) as total
     FROM entradas e
     JOIN inscripciones i ON i.id = e.inscripcion_id
+    JOIN eventos ev ON ev.id = e.evento_id
     JOIN users u ON u.id = i.user_id
     WHERE $whereStr
 ");

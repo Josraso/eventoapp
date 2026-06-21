@@ -6,9 +6,22 @@ Auth::adminCheck('superadmin', 'admin');
 $adminRole = Auth::adminRole();
 $base = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
 
+function eventoEsPropio(int $id): bool
+{
+    if (Auth::adminRole() === 'superadmin') return true;
+    $st = db()->prepare('SELECT COUNT(*) FROM eventos WHERE id=? AND admin_id=?');
+    $st->execute([$id, Auth::adminId()]);
+    return (int)$st->fetchColumn() > 0;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Auth::checkCsrf();
     $id = (int)($_POST['evento_id'] ?? 0);
+    if (!eventoEsPropio($id)) {
+        flash('error', 'No tienes permiso sobre este evento.');
+        header('Location: ' . $base . '/admin/eventos/index.php');
+        exit;
+    }
     switch ($_POST['action'] ?? '') {
         case 'archivar':
             db()->prepare('UPDATE eventos SET archivado=1, fecha_archivo=NOW() WHERE id=?')->execute([$id]);
@@ -43,17 +56,21 @@ $pageTitle = 'Eventos';
 require_once __DIR__ . '/../_header.php';
 
 $filtro = $_GET['filtro'] ?? 'activos';
-$where  = match($filtro) {
-    'archivados' => 'WHERE e.archivado=1',
-    'todos'      => '',
-    default      => 'WHERE e.archivado=0',
+$cond  = match($filtro) {
+    'archivados' => ['e.archivado=1'],
+    'todos'      => [],
+    default      => ['e.archivado=0'],
 };
+if ($adminRole !== 'superadmin') $cond[] = 'e.admin_id=' . (int)Auth::adminId();
+$where = $cond ? ('WHERE ' . implode(' AND ', $cond)) : '';
 
 $eventos = db()->query("
-    SELECT e.*,
+    SELECT e.*, au.name as admin_nombre,
         (SELECT COUNT(*) FROM entradas en JOIN inscripciones i ON i.id=en.inscripcion_id WHERE i.evento_id=e.id AND i.estado_pago='pagado') as total_pagados,
         (SELECT COUNT(*) FROM inscripciones i WHERE i.evento_id=e.id AND i.estado_pago='pendiente') as total_pendientes
-    FROM eventos e $where
+    FROM eventos e
+    LEFT JOIN admin_users au ON au.id=e.admin_id
+    $where
     ORDER BY e.archivado ASC, e.sort_order ASC, e.fecha_evento DESC
 ")->fetchAll();
 ?>
@@ -71,11 +88,11 @@ $eventos = db()->query("
   <div class="table-wrap">
     <table class="admin">
       <thead>
-        <tr><th>Nombre</th><th>Fecha</th><th>Precio</th><th>Inscritos</th><th>Estado</th><th>Acciones</th></tr>
+        <tr><th>Nombre</th><?php if ($adminRole === 'superadmin'): ?><th>Admin</th><?php endif; ?><th>Fecha</th><th>Precio</th><th>Inscritos</th><th>Estado</th><th>Acciones</th></tr>
       </thead>
       <tbody>
         <?php if (empty($eventos)): ?>
-          <tr><td colspan="6" style="text-align:center;color:#aaa;padding:40px;">No hay eventos en esta vista.</td></tr>
+          <tr><td colspan="<?= $adminRole === 'superadmin' ? 7 : 6 ?>" style="text-align:center;color:#aaa;padding:40px;">No hay eventos en esta vista.</td></tr>
         <?php else: ?>
           <?php foreach ($eventos as $ev): ?>
           <tr>
@@ -83,6 +100,9 @@ $eventos = db()->query("
               <div style="font-weight:600;"><?= h($ev['nombre']) ?></div>
               <div style="font-size:11px;color:#aaa;"><?= h($ev['slug']) ?></div>
             </td>
+            <?php if ($adminRole === 'superadmin'): ?>
+            <td><?= $ev['admin_nombre'] ? h($ev['admin_nombre']) : '<span class="badge badge-orange">Sin asignar</span>' ?></td>
+            <?php endif; ?>
             <td><?= $ev['fecha_evento'] ? date('d/m/Y H:i', strtotime($ev['fecha_evento'])) : '<span style="color:#ccc">—</span>' ?></td>
             <td><?= $ev['es_gratuito'] ? '<span class="badge badge-green">Gratis</span>' : h(number_format((float)$ev['precio'],2,',','.')).' €' ?></td>
             <td>

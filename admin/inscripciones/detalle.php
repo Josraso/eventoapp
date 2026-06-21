@@ -15,6 +15,13 @@ $stIns = db()->prepare('SELECT i.*, e.nombre as evento_nombre, e.fecha_evento, e
 $stIns->execute([$id]);
 $ins = $stIns->fetch();
 if (!$ins) { flash('error','Inscripción no encontrada.'); header('Location: ' . $base . '/admin/inscripciones/index.php'); exit; }
+if (Auth::adminRole() !== 'superadmin') {
+    $stOwn = db()->prepare('SELECT admin_id FROM eventos WHERE id=?');
+    $stOwn->execute([$ins['evento_id']]);
+    if ((int)$stOwn->fetchColumn() !== Auth::adminId()) {
+        flash('error','No tienes permiso sobre este pedido.'); header('Location: ' . $base . '/admin/inscripciones/index.php'); exit;
+    }
+}
 
 $stEnt = db()->prepare('SELECT * FROM entradas WHERE inscripcion_id=? ORDER BY es_titular DESC, id ASC');
 $stEnt->execute([$id]);

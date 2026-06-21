@@ -14,8 +14,13 @@ $q            = trim($_GET['q'] ?? '');
 
 $where  = ['1=1'];
 $params = [];
+if (Auth::adminRole() !== 'superadmin') { $where[] = 'e.admin_id=?'; $params[] = Auth::adminId(); }
 if ($eventoFiltro) { $where[] = 'i.evento_id=?'; $params[] = $eventoFiltro; }
-if ($estadoFiltro) { $where[] = 'i.estado_pago=?'; $params[] = $estadoFiltro; }
+if ($estadoFiltro) {
+    $where[] = 'i.estado_pago=?'; $params[] = $estadoFiltro;
+} elseif (empty($_GET['mostrar_fallidos'])) {
+    $where[] = "i.estado_pago != 'fallido'";
+}
 if ($q) {
     $qlike = '%' . $q . '%';
     $where[] = '(i.numero_pedido LIKE ? OR u.name LIKE ? OR u.email LIKE ?
