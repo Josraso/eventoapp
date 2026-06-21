@@ -268,69 +268,83 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
 </header>
 
 <main class="page-wrap">
+  <?php if ($step === 'info'): ?>
+  <!-- ── INFO EVENTO (página completa) ── -->
+  <div class="container">
+    <?php if ($error): ?>
+      <div class="alert alert-error"><?= $error ?></div>
+    <?php endif; ?>
+
+    <?php if ($evento['imagen']): ?>
+      <img src="../<?= h($evento['imagen']) ?>" alt="<?= h($evento['nombre']) ?>" class="evento-hero">
+    <?php endif; ?>
+
+    <div class="evento-detail-grid anim-fade">
+      <div>
+        <h1 style="font-size:28px;font-weight:800;letter-spacing:-.02em;margin-bottom:14px;"><?= h($evento['nombre']) ?></h1>
+
+        <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:20px;">
+          <?php if ($evento['fecha_evento']): ?>
+            <span style="font-size:14px;color:#666;">📅 <?= date('d/m/Y H:i', strtotime($evento['fecha_evento'])) ?></span>
+          <?php endif; ?>
+          <?php if ($evento['lugar']):
+            $mapsUrl = $evento['lugar_url'] ?: ('https://www.google.com/maps/search/?api=1&query=' . urlencode($evento['lugar']));
+          ?>
+            <span style="font-size:14px;color:#666;">📍 <?= h($evento['lugar']) ?>
+              <a href="<?= h($mapsUrl) ?>" target="_blank" rel="noopener" style="margin-left:4px;">(Ver en el mapa)</a>
+            </span>
+          <?php endif; ?>
+          <?php if ($evento['max_inscritos']): ?>
+            <span style="font-size:14px;color:#888;">👥 <?= $totalInscritos ?> / <?= $evento['max_inscritos'] ?> inscritos</span>
+          <?php endif; ?>
+        </div>
+
+        <?php if ($evento['descripcion']): ?>
+          <div class="card" style="font-size:14px;color:#444;line-height:1.7;"><?= $evento['descripcion'] ?></div>
+        <?php endif; ?>
+      </div>
+
+      <div class="evento-detail-sidebar">
+        <div class="card" style="text-align:center;">
+          <?php if (!$evento['es_gratuito']): ?>
+            <div style="font-size:32px;font-weight:800;letter-spacing:-.02em;"><?= number_format((float)$evento['precio'], 2, ',', '.') ?> €</div>
+            <div style="font-size:12px;color:#888;margin-bottom:18px;">por persona</div>
+          <?php else: ?>
+            <span class="badge badge-green" style="font-size:14px;padding:6px 16px;margin-bottom:18px;display:inline-block;">Gratuito</span>
+          <?php endif; ?>
+
+          <?php if (!$disponible): ?>
+            <div class="alert alert-warning" style="text-align:left;">
+              <?php if ($lleno): ?>⚠️ Este evento está completo.
+              <?php elseif ($cerrado): ?>⚠️ El plazo de inscripción ha finalizado.
+              <?php else: ?>⚠️ Este evento ya no está disponible.
+              <?php endif; ?>
+            </div>
+          <?php elseif ($yaInscrito): ?>
+            <div class="alert alert-info" style="text-align:left;">✓ Ya estás inscrito en este evento. <a href="mi-cuenta.php">Ver mis entradas →</a></div>
+            <a href="evento.php?slug=<?= urlencode($slug) ?>&step=inscripcion"
+               class="btn btn-full btn-outline" style="margin-top:10px;">
+              ➕ Si quieres comprar más entradas, pincha aquí
+            </a>
+          <?php else: ?>
+            <a href="evento.php?slug=<?= urlencode($slug) ?>&step=<?= $isLogged ? 'inscripcion' : 'auth' ?>"
+               class="btn btn-full">
+              🎫 Inscribirme en este evento
+            </a>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <?php else: ?>
   <div class="container-sm">
 
     <?php if ($error): ?>
       <div class="alert alert-error"><?= $error ?></div>
     <?php endif; ?>
 
-    <?php if ($step === 'info'): ?>
-    <!-- ── INFO EVENTO ── -->
-    <div class="card anim-fade">
-      <?php if ($evento['imagen']): ?>
-        <img src="../<?= h($evento['imagen']) ?>" alt="<?= h($evento['nombre']) ?>"
-             style="width:100%;height:220px;object-fit:cover;border-radius:10px;margin-bottom:18px;">
-      <?php endif; ?>
-
-      <h1 style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:10px;"><?= h($evento['nombre']) ?></h1>
-
-      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
-        <?php if ($evento['fecha_evento']): ?>
-          <span style="font-size:13px;color:#666;">📅 <?= date('d/m/Y H:i', strtotime($evento['fecha_evento'])) ?></span>
-        <?php endif; ?>
-        <?php if ($evento['lugar']):
-          $mapsUrl = $evento['lugar_url'] ?: ('https://www.google.com/maps/search/?api=1&query=' . urlencode($evento['lugar']));
-        ?>
-          <span style="font-size:13px;color:#666;">📍 <?= h($evento['lugar']) ?>
-            <a href="<?= h($mapsUrl) ?>" target="_blank" rel="noopener" style="margin-left:4px;">(Ver en el mapa)</a>
-          </span>
-        <?php endif; ?>
-        <?php if (!$evento['es_gratuito']): ?>
-          <span style="font-size:13px;color:#1a1a1a;font-weight:700;">💶 <?= number_format((float)$evento['precio'], 2, ',', '.') ?> € / persona</span>
-        <?php else: ?>
-          <span class="badge badge-green">Gratuito</span>
-        <?php endif; ?>
-        <?php if ($evento['max_inscritos']): ?>
-          <span style="font-size:13px;color:#888;">👥 <?= $totalInscritos ?> / <?= $evento['max_inscritos'] ?> inscritos</span>
-        <?php endif; ?>
-      </div>
-
-      <?php if ($evento['descripcion']): ?>
-        <div style="font-size:14px;color:#444;line-height:1.7;margin-bottom:20px;"><?= $evento['descripcion'] ?></div>
-      <?php endif; ?>
-
-      <?php if (!$disponible): ?>
-        <div class="alert alert-warning">
-          <?php if ($lleno): ?>⚠️ Este evento está completo.
-          <?php elseif ($cerrado): ?>⚠️ El plazo de inscripción ha finalizado.
-          <?php else: ?>⚠️ Este evento ya no está disponible.
-          <?php endif; ?>
-        </div>
-      <?php elseif ($yaInscrito): ?>
-        <div class="alert alert-info">✓ Ya estás inscrito en este evento. <a href="mi-cuenta.php">Ver mis entradas →</a></div>
-        <a href="evento.php?slug=<?= urlencode($slug) ?>&step=inscripcion"
-           class="btn btn-full btn-outline" style="margin-top:10px;">
-          ➕ Si quieres comprar más entradas, pincha aquí
-        </a>
-      <?php else: ?>
-        <a href="evento.php?slug=<?= urlencode($slug) ?>&step=<?= $isLogged ? 'inscripcion' : 'auth' ?>"
-           class="btn btn-full" style="margin-top:8px;">
-          🎫 Inscribirme en este evento
-        </a>
-      <?php endif; ?>
-    </div>
-
-    <?php elseif ($step === 'auth'): ?>
+    <?php if ($step === 'auth'): ?>
     <!-- ── AUTH (login / registro) ── -->
     <div class="card anim-fade">
       <a href="evento.php?slug=<?= urlencode($slug) ?>" style="font-size:13px;color:#888;text-decoration:none;">← Volver al evento</a>
@@ -580,6 +594,7 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
 
     <?php endif; ?>
   </div>
+  <?php endif; ?>
 </main>
 </body>
 </html>

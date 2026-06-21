@@ -112,6 +112,15 @@ $stIns = db()->prepare("
 ");
 $stIns->execute([Auth::userId()]);
 $inscripciones = $stIns->fetchAll();
+
+// Agrupar por evento (un usuario puede tener varios pedidos del mismo evento)
+$porEvento = [];
+foreach ($inscripciones as $ins) {
+    $porEvento[$ins['evento_id']]['evento_nombre'] ??= $ins['evento_nombre'];
+    $porEvento[$ins['evento_id']]['fecha_evento']  ??= $ins['fecha_evento'];
+    $porEvento[$ins['evento_id']]['lugar']         ??= $ins['lugar'];
+    $porEvento[$ins['evento_id']]['pedidos'][]      = $ins;
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -178,37 +187,43 @@ $inscripciones = $stIns->fetchAll();
           <a href="index.php" class="btn">Ver eventos disponibles</a>
         </div>
       <?php else: ?>
-        <?php foreach ($inscripciones as $ins):
-          $stEnt = db()->prepare('SELECT * FROM entradas WHERE inscripcion_id=? ORDER BY es_titular DESC, id ASC');
-          $stEnt->execute([$ins['id']]);
-          $entradas = $stEnt->fetchAll();
-          $badgeClass = match($ins['estado_pago']) {
-              'pagado'      => 'badge-green',
-              'pendiente'   => 'badge-orange',
-              'cancelado'   => 'badge-red',
-              default       => 'badge-gray',
-          };
-          $estadoLabel = match($ins['estado_pago']) {
-              'pagado'    => 'Pagado',
-              'pendiente' => 'Pendiente',
-              'cancelado' => 'Cancelado',
-              default     => $ins['estado_pago'],
-          };
-        ?>
-        <div class="card" style="margin-bottom:16px;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-            <div>
-              <div style="font-size:16px;font-weight:700;"><?= h($ins['evento_nombre']) ?></div>
-              <?php if ($ins['fecha_evento']): ?>
-                <div style="font-size:13px;color:#888;margin-top:3px;">📅 <?= date('d/m/Y H:i', strtotime($ins['fecha_evento'])) ?></div>
+        <?php foreach ($porEvento as $grupo): ?>
+        <div class="card" style="margin-bottom:20px;padding:0;overflow:hidden;">
+          <div style="background:#fafafa;border-bottom:1px solid #f0f0f0;padding:16px 24px;">
+            <div style="font-size:17px;font-weight:800;"><?= h($grupo['evento_nombre']) ?></div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:4px;">
+              <?php if ($grupo['fecha_evento']): ?>
+                <span style="font-size:13px;color:#888;">📅 <?= date('d/m/Y H:i', strtotime($grupo['fecha_evento'])) ?></span>
               <?php endif; ?>
-              <?php if ($ins['lugar']): ?>
-                <div style="font-size:13px;color:#888;">📍 <?= h($ins['lugar']) ?></div>
+              <?php if ($grupo['lugar']): ?>
+                <span style="font-size:13px;color:#888;">📍 <?= h($grupo['lugar']) ?></span>
               <?php endif; ?>
             </div>
+          </div>
+
+          <div style="padding:20px 24px;">
+          <?php foreach ($grupo['pedidos'] as $i => $ins):
+            $stEnt = db()->prepare('SELECT * FROM entradas WHERE inscripcion_id=? ORDER BY es_titular DESC, id ASC');
+            $stEnt->execute([$ins['id']]);
+            $entradas = $stEnt->fetchAll();
+            $badgeClass = match($ins['estado_pago']) {
+                'pagado'      => 'badge-green',
+                'pendiente'   => 'badge-orange',
+                'cancelado'   => 'badge-red',
+                default       => 'badge-gray',
+            };
+            $estadoLabel = match($ins['estado_pago']) {
+                'pagado'    => 'Pagado',
+                'pendiente' => 'Pendiente',
+                'cancelado' => 'Cancelado',
+                default     => $ins['estado_pago'],
+            };
+          ?>
+          <div <?= $i > 0 ? 'style="border-top:1px solid #f0f0f0;padding-top:16px;margin-top:16px;"' : '' ?>>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+            <div style="font-size:12px;color:#aaa;">Pedido: <?= h($ins['numero_pedido']) ?> &middot; <?= date('d/m/Y', strtotime($ins['created_at'])) ?></div>
             <div style="text-align:right;">
               <span class="badge <?= $badgeClass ?>"><?= $estadoLabel ?></span>
-              <div style="font-size:12px;color:#aaa;margin-top:4px;">Pedido: <?= h($ins['numero_pedido']) ?></div>
               <?php if (!$ins['es_gratuito']): ?>
                 <div style="font-size:14px;font-weight:700;margin-top:4px;"><?= number_format((float)$ins['precio_total'], 2, ',', '.') ?> €</div>
               <?php endif; ?>
@@ -254,6 +269,9 @@ $inscripciones = $stIns->fetchAll();
             </div>
             <?php endforeach; ?>
           <?php endif; ?>
+          </div>
+          <?php endforeach; ?>
+          </div>
         </div>
         <?php endforeach; ?>
       <?php endif; ?>
