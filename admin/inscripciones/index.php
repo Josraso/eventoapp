@@ -57,6 +57,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare('UPDATE inscripciones SET notas_admin=? WHERE id=?')
            ->execute([$_POST['nota'] ?? '', $insId]);
         flash('ok', 'Nota guardada.');
+    } elseif ($action === 'eliminar') {
+        $stIns = db()->prepare('SELECT numero_pedido FROM inscripciones WHERE id=?');
+        $stIns->execute([$insId]);
+        $numPedido = $stIns->fetchColumn();
+        db()->prepare('DELETE FROM inscripciones WHERE id=?')->execute([$insId]);
+        Auth::logAction('eliminar_inscripcion', 'Inscripción #' . $insId . ' pedido:' . $numPedido);
+        flash('ok', 'Pedido eliminado.');
     }
     // Volver al listado conservando filtros
     header('Location: ' . $base . '/admin/inscripciones/index.php?' . http_build_query(array_filter([
@@ -248,6 +255,15 @@ $exportUrl = 'exportar.php?' . http_build_query(array_filter(['evento_id'=>$even
                     <button type="submit" class="btn btn-sm btn-success">✓ Confirmar</button>
                   </form>
                 <?php endif; ?>
+                <form method="POST" onsubmit="return confirm('¿Eliminar este pedido y todas sus entradas? Esta acción no se puede deshacer.')">
+                  <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
+                  <input type="hidden" name="action" value="eliminar">
+                  <input type="hidden" name="inscripcion_id" value="<?= $ins['id'] ?>">
+                  <input type="hidden" name="evento_id" value="<?= $eventoFiltro ?>">
+                  <input type="hidden" name="estado_actual" value="<?= h($estadoFiltro) ?>">
+                  <input type="hidden" name="q_actual" value="<?= h($q) ?>">
+                  <button type="submit" class="btn btn-sm btn-danger">🗑</button>
+                </form>
               </div>
             </td>
           </tr>

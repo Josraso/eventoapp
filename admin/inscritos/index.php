@@ -28,6 +28,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db()->prepare('UPDATE entradas SET usado=0, usado_at=NULL, usado_por=NULL WHERE id=?')
            ->execute([$entId]);
         flash('ok', 'Entrada desmarcada.');
+    } elseif ($action === 'eliminar') {
+        $stCnt = db()->prepare('SELECT inscripcion_id FROM entradas WHERE id=?');
+        $stCnt->execute([$entId]);
+        $insId = $stCnt->fetchColumn();
+        $stTot = db()->prepare('SELECT COUNT(*) FROM entradas WHERE inscripcion_id=?');
+        $stTot->execute([$insId]);
+        if ((int)$stTot->fetchColumn() > 1) {
+            db()->prepare('DELETE FROM entradas WHERE id=?')->execute([$entId]);
+            flash('ok', 'Entrada eliminada.');
+        } else {
+            flash('error', 'No se puede eliminar la única entrada de un pedido; elimina el pedido completo desde Pedidos.');
+        }
     }
 
     header('Location: ' . $base . '/admin/inscritos/index.php?' . http_build_query(array_filter([
@@ -199,6 +211,15 @@ $exportUrl = 'exportar.php?' . http_build_query(array_filter(['evento_id'=>$even
                   <input type="hidden" name="action" value="marcar">
                   <button type="submit" class="btn btn-sm btn-success">✓ Marcar entrada</button>
                 <?php endif; ?>
+              </form>
+              <form method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar esta entrada?')">
+                <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
+                <input type="hidden" name="action" value="eliminar">
+                <input type="hidden" name="entrada_id" value="<?= $ent['id'] ?>">
+                <input type="hidden" name="evento_id" value="<?= $eventoFiltro ?>">
+                <input type="hidden" name="estado_actual" value="<?= h($estadoFiltro) ?>">
+                <input type="hidden" name="q_actual" value="<?= h($q) ?>">
+                <button type="submit" class="btn btn-sm btn-danger">🗑</button>
               </form>
             </td>
           </tr>

@@ -91,6 +91,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('ok','Pago confirmado y entradas enviadas.');
         header('Location: ' . $base . '/admin/inscripciones/detalle.php?id='.$id); exit;
     }
+    if ($action === 'eliminar_entrada') {
+        $entId = (int)($_POST['entrada_id'] ?? 0);
+        $stChk = db()->prepare('SELECT id FROM entradas WHERE id=? AND inscripcion_id=?');
+        $stChk->execute([$entId, $id]);
+        if ($stChk->fetch()) {
+            db()->prepare('DELETE FROM entradas WHERE id=?')->execute([$entId]);
+            flash('ok','Entrada eliminada.');
+        }
+        header('Location: ' . $base . '/admin/inscripciones/detalle.php?id='.$id); exit;
+    }
+    if ($action === 'eliminar_pedido') {
+        db()->prepare('DELETE FROM inscripciones WHERE id=?')->execute([$id]);
+        Auth::logAction('eliminar_inscripcion', 'Inscripción #' . $id . ' pedido:' . $ins['numero_pedido']);
+        flash('ok','Pedido eliminado.');
+        header('Location: ' . $base . '/admin/inscripciones/index.php'); exit;
+    }
     if ($action === 'reenviar_entradas') {
         require_once __DIR__ . '/../../lib/TicketManager.php';
         require_once __DIR__ . '/../../lib/Mailer.php';
@@ -176,6 +192,14 @@ $bc = match($ins['estado_pago']) { 'pagado'=>'badge-green','pendiente'=>'badge-o
           <?php endif; ?>
           <a href="descargar-pdf.php?id=<?= $ent['id'] ?>" class="btn btn-sm btn-outline" target="_blank">⬇ PDF</a>
           <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('edit-ent-<?= $ent['id'] ?>').style.display='block';this.style.display='none';">✎ Editar</button>
+          <?php if (count($entradas) > 1): ?>
+          <form method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar esta entrada?')">
+            <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
+            <input type="hidden" name="action" value="eliminar_entrada">
+            <input type="hidden" name="entrada_id" value="<?= $ent['id'] ?>">
+            <button type="submit" class="btn btn-sm btn-danger">🗑</button>
+          </form>
+          <?php endif; ?>
         </div>
         <form method="POST" id="edit-ent-<?= $ent['id'] ?>" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #f0f0f0;">
           <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
@@ -250,6 +274,16 @@ $bc = match($ins['estado_pago']) { 'pagado'=>'badge-green','pendiente'=>'badge-o
           <input type="text" name="precio_total" value="<?= h($ins['precio_total']) ?>">
         </div>
         <button type="submit" class="btn btn-sm btn-outline" style="width:100%;">Guardar pedido</button>
+      </form>
+    </div>
+
+    <div class="card" style="border:2px solid #fcc;">
+      <div class="card-title">Eliminar pedido</div>
+      <p style="font-size:13px;color:#888;margin-bottom:12px;">Borra este pedido y todas sus entradas de forma permanente.</p>
+      <form method="POST" onsubmit="return confirm('¿Eliminar este pedido y todas sus entradas? Esta acción no se puede deshacer.')">
+        <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
+        <input type="hidden" name="action" value="eliminar_pedido">
+        <button type="submit" class="btn btn-danger" style="width:100%;">🗑 Eliminar pedido</button>
       </form>
     </div>
 

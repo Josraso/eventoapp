@@ -13,6 +13,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->prepare('UPDATE users SET active = NOT active WHERE id=?')->execute([$uid]);
             flash('ok','Estado actualizado.');
             break;
+        case 'eliminar':
+            $stChk = db()->prepare("SELECT COUNT(*) FROM inscripciones WHERE user_id=? AND estado_pago='pagado'");
+            $stChk->execute([$uid]);
+            if ((int)$stChk->fetchColumn() > 0) {
+                flash('error','No se puede eliminar un usuario con pedidos pagados.');
+            } else {
+                db()->prepare('DELETE FROM inscripciones WHERE user_id=?')->execute([$uid]);
+                db()->prepare('DELETE FROM users WHERE id=?')->execute([$uid]);
+                flash('ok','Usuario eliminado.');
+            }
+            break;
     }
     header('Location: ' . $base . '/admin/usuarios/index.php'); exit;
 }
@@ -75,6 +86,12 @@ $users = $st->fetchAll();
               </form>
               <a href="<?= h($base) ?>/admin/inscripciones/index.php?q=<?= urlencode($u['email']) ?>" class="btn btn-sm btn-outline">Inscripciones</a>
               <a href="<?= h($base) ?>/admin/usuarios/editar.php?id=<?= $u['id'] ?>" class="btn btn-sm btn-outline">✎ Editar</a>
+              <form method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar este usuario y sus pedidos no pagados? Esta acción no se puede deshacer.')">
+                <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
+                <input type="hidden" name="action" value="eliminar">
+                <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-danger">🗑</button>
+              </form>
             </td>
           </tr>
           <?php endforeach; ?>
