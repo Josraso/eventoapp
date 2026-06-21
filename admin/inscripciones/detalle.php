@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $evento = $stEv->fetch();
         $atts = array_map(fn($p) => ['path'=>$p], $paths);
         $m = new Mailer();
-        $m->send($user['email'],$user['name'],'Tus entradas — '.$evento['nombre'],
+        $m->send($user['email'],$user['name'],'Confirmación de tu pedido — '.$evento['nombre'],
             Mailer::tplEntradas($ins,$evento,$user),$atts);
         db()->prepare('UPDATE inscripciones SET email_entradas_enviado=1 WHERE id=?')->execute([$id]);
         Auth::logAction('confirmar_pago','Inscripción #'.$id);
@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $evento = $stEv->fetch();
         $atts = array_map(fn($p) => ['path'=>$p], $paths);
         $m = new Mailer();
-        $m->send($user['email'],$user['name'],'Tus entradas — '.$evento['nombre'],
+        $m->send($user['email'],$user['name'],'Confirmación de tu pedido — '.$evento['nombre'],
             Mailer::tplEntradas($ins,$evento,$user),$atts);
         flash('ok','Entradas reenviadas al cliente.');
         header('Location: ' . $base . '/admin/inscripciones/detalle.php?id='.$id); exit;

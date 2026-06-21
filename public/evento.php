@@ -253,7 +253,7 @@ function procesarInscripcionGratis(int $inscripcionId, array $evento, array $use
     $insRow = $ins->fetch();
     $m = new Mailer();
     $m->send($user['email'], $user['name'],
-        'Tus entradas — ' . $evento['nombre'],
+        'Confirmación de tu pedido — ' . $evento['nombre'],
         Mailer::tplEntradas($insRow, $evento, $user), $atts);
     db()->prepare('UPDATE inscripciones SET email_entradas_enviado=1 WHERE id=?')->execute([$inscripcionId]);
 }

@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $evento = $stEv->fetch();
             $atts = array_map(fn($p) => ['path' => $p], $paths);
             $m = new Mailer();
-            $res = $m->send($user['email'], $user['name'], 'Tus entradas — ' . $evento['nombre'],
+            $res = $m->send($user['email'], $user['name'], 'Confirmación de tu pedido — ' . $evento['nombre'],
                 Mailer::tplEntradas($ins, $evento, $user), $atts);
             if ($res['ok']) db()->prepare('UPDATE inscripciones SET email_entradas_enviado=1 WHERE id=?')->execute([$insId]);
             Auth::logAction('confirmar_pago', 'Inscripción #' . $insId . ' pedido:' . $ins['numero_pedido']);

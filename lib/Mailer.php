@@ -217,21 +217,46 @@ Concepto: <strong>' . h($pedido) . '</strong> y tu nombre completo.
         $pedido = $inscripcion['numero_pedido'];
         $total  = number_format((float)$inscripcion['precio_total'], 2, ',', '.') . ' €';
 
+        $stE = db()->prepare('SELECT COUNT(*) FROM entradas WHERE inscripcion_id=?');
+        $stE->execute([$inscripcion['id']]);
+        $numEntradas = (int)$stE->fetchColumn();
+
+        $stC = db()->prepare('SELECT COUNT(*) FROM consumiciones WHERE inscripcion_id=?');
+        $stC->execute([$inscripcion['id']]);
+        $numConsumiciones = (int)$stC->fetchColumn();
+
+        $soloConsumiciones = $numEntradas === 0 && $numConsumiciones > 0;
+
+        if ($soloConsumiciones) {
+            $titulo = 'Tus consumiciones - ' . $evento['nombre'];
+            $intro  = 'Tu pedido ha sido <strong>confirmado</strong>. Adjunto encontrarás los tickets de tus consumiciones con códigos QR.';
+            $filaPersonas = '';
+        } elseif ($numConsumiciones > 0) {
+            $titulo = 'Tus entradas y consumiciones - ' . $evento['nombre'];
+            $intro  = 'Tu inscripción ha sido <strong>confirmada</strong>. Adjunto encontrarás tus entradas y los tickets de las consumiciones de barra, todos con códigos QR.';
+            $filaPersonas = '<tr><td>Personas inscritas</td><td>' . (int)$inscripcion['num_personas'] . '</td></tr>';
+        } else {
+            $titulo = 'Tus entradas - ' . $evento['nombre'];
+            $intro  = 'Tu inscripción ha sido <strong>confirmada</strong>. Adjunto encontrarás las entradas con códigos QR.';
+            $filaPersonas = '<tr><td>Personas inscritas</td><td>' . (int)$inscripcion['num_personas'] . '</td></tr>';
+        }
+
         $c = '<p>Hola <strong>' . h($user['name']) . '</strong>,</p>
-<p>Tu inscripción ha sido <strong>confirmada</strong>. Adjunto encontrarás las entradas con códigos QR.</p>
-<span class="badge-ok">✓ Inscripción confirmada</span>
+<p>' . $intro . '</p>
+<span class="badge-ok">✓ ' . ($soloConsumiciones ? 'Pedido confirmado' : 'Inscripción confirmada') . '</span>
 <table>
   <tr><td>Evento</td><td>' . h($evento['nombre']) . '</td></tr>
   <tr><td>Fecha</td><td>' . ($evento['fecha_evento'] ? date('d/m/Y H:i', strtotime($evento['fecha_evento'])) : 'Por confirmar') . '</td></tr>
   <tr><td>Lugar</td><td>' . h($evento['lugar'] ?? 'Por confirmar') . '</td></tr>
   <tr><td>Número de pedido</td><td>' . h($pedido) . '</td></tr>
-  <tr><td>Personas inscritas</td><td>' . (int)$inscripcion['num_personas'] . '</td></tr>
+  ' . $filaPersonas . '
+  ' . ($numConsumiciones > 0 ? '<tr><td>Consumiciones</td><td>' . $numConsumiciones . '</td></tr>' : '') . '
   ' . (!$evento['es_gratuito'] ? '<tr><td>Total pagado</td><td>' . $total . '</td></tr>' : '') . '
 </table>
-<p style="font-size:13px;color:#666;">Cada entrada adjunta corresponde a una persona. Preséntala en la entrada del evento.</p>
-<p style="font-size:13px;color:#666;">También puedes acceder a tus entradas en cualquier momento desde tu cuenta.</p>';
+<p style="font-size:13px;color:#666;">Cada código QR adjunto corresponde a un único uso (una entrada o una consumición). Preséntalo en el evento.</p>
+<p style="font-size:13px;color:#666;">También puedes acceder a tus pedidos en cualquier momento desde tu cuenta.</p>';
 
-        return self::tplBase('Tus entradas - ' . $evento['nombre'], $c);
+        return self::tplBase($titulo, $c);
     }
 
     public static function tplEntradaIndividual(array $entrada, array $evento, array $inscripcion): string
