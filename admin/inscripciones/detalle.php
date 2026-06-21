@@ -42,6 +42,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('ok','Nota guardada.');
         header('Location: ' . $base . '/admin/inscripciones/detalle.php?id='.$id); exit;
     }
+    if ($action === 'editar_pedido') {
+        $nuevoEstado = $_POST['estado_pago'] ?? $ins['estado_pago'];
+        $nuevoMetodo = $_POST['metodo_pago'] ?? $ins['metodo_pago'];
+        $nuevoPrecio = (float)str_replace(',', '.', $_POST['precio_total'] ?? $ins['precio_total']);
+        db()->prepare('UPDATE inscripciones SET estado_pago=?, metodo_pago=?, precio_total=? WHERE id=?')
+           ->execute([$nuevoEstado, $nuevoMetodo, $nuevoPrecio, $id]);
+        Auth::logAction('editar_pedido', 'Inscripción #'.$id.' pedido:'.$ins['numero_pedido']);
+        flash('ok','Pedido actualizado.');
+        header('Location: ' . $base . '/admin/inscripciones/detalle.php?id='.$id); exit;
+    }
+    if ($action === 'editar_entrada') {
+        $entId = (int)($_POST['entrada_id'] ?? 0);
+        $stChk = db()->prepare('SELECT id FROM entradas WHERE id=? AND inscripcion_id=?');
+        $stChk->execute([$entId, $id]);
+        if ($stChk->fetch()) {
+            $nuevoNombre = trim($_POST['nombre_asistente'] ?? '');
+            $extras = [];
+            foreach ($campos as $c) {
+                $extras[$c['nombre']] = trim($_POST['campo_'.$c['id']] ?? '');
+            }
+            if ($nuevoNombre) {
+                db()->prepare('UPDATE entradas SET nombre_asistente=?, campos_extra=? WHERE id=?')
+                   ->execute([$nuevoNombre, json_encode($extras), $entId]);
+                flash('ok','Entrada actualizada.');
+            }
+        }
+        header('Location: ' . $base . '/admin/inscripciones/detalle.php?id='.$id); exit;
+    }
     if ($action === 'confirmar_pago') {
         require_once __DIR__ . '/../../lib/TicketManager.php';
         require_once __DIR__ . '/../../lib/Mailer.php';
@@ -147,7 +175,24 @@ $bc = match($ins['estado_pago']) { 'pagado'=>'badge-green','pendiente'=>'badge-o
             <span class="badge badge-blue" style="font-family:monospace;letter-spacing:.05em;">Código: <?= h($ent['codigo_corto']) ?></span>
           <?php endif; ?>
           <a href="descargar-pdf.php?id=<?= $ent['id'] ?>" class="btn btn-sm btn-outline" target="_blank">⬇ PDF</a>
+          <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('edit-ent-<?= $ent['id'] ?>').style.display='block';this.style.display='none';">✎ Editar</button>
         </div>
+        <form method="POST" id="edit-ent-<?= $ent['id'] ?>" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #f0f0f0;">
+          <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
+          <input type="hidden" name="action" value="editar_entrada">
+          <input type="hidden" name="entrada_id" value="<?= $ent['id'] ?>">
+          <div class="field">
+            <label>Nombre asistente</label>
+            <input type="text" name="nombre_asistente" value="<?= h($ent['nombre_asistente']) ?>">
+          </div>
+          <?php foreach ($campos as $c): ?>
+          <div class="field">
+            <label><?= h($c['nombre']) ?></label>
+            <input type="text" name="campo_<?= $c['id'] ?>" value="<?= h($extras[$c['nombre']] ?? '') ?>">
+          </div>
+          <?php endforeach; ?>
+          <button type="submit" class="btn btn-sm" style="width:100%;">Guardar cambios</button>
+        </form>
       </div>
       <?php endforeach; ?>
     </div>
@@ -178,6 +223,35 @@ $bc = match($ins['estado_pago']) { 'pagado'=>'badge-green','pendiente'=>'badge-o
       </form>
     </div>
     <?php endif; ?>
+
+    <div class="card">
+      <div class="card-title">Editar pedido</div>
+      <form method="POST">
+        <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
+        <input type="hidden" name="action" value="editar_pedido">
+        <div class="field">
+          <label>Estado de pago</label>
+          <select name="estado_pago">
+            <?php foreach (['pendiente','pagado','cancelado','fallido','reembolsado'] as $est): ?>
+            <option value="<?= $est ?>" <?= $ins['estado_pago']===$est?'selected':'' ?>><?= ucfirst($est) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="field">
+          <label>Método de pago</label>
+          <select name="metodo_pago">
+            <?php foreach (['stripe','redsys','bizum','transferencia','gratis'] as $met): ?>
+            <option value="<?= $met ?>" <?= $ins['metodo_pago']===$met?'selected':'' ?>><?= ucfirst($met) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="field">
+          <label>Precio total (€)</label>
+          <input type="text" name="precio_total" value="<?= h($ins['precio_total']) ?>">
+        </div>
+        <button type="submit" class="btn btn-sm btn-outline" style="width:100%;">Guardar pedido</button>
+      </form>
+    </div>
 
     <div class="card">
       <div class="card-title">Nota interna</div>

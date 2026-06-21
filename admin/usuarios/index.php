@@ -74,6 +74,7 @@ $users = $st->fetchAll();
                 <button type="submit" class="btn btn-sm btn-outline"><?= $u['active']?'Desactivar':'Activar' ?></button>
               </form>
               <a href="<?= h($base) ?>/admin/inscripciones/index.php?q=<?= urlencode($u['email']) ?>" class="btn btn-sm btn-outline">Inscripciones</a>
+              <a href="<?= h($base) ?>/admin/usuarios/editar.php?id=<?= $u['id'] ?>" class="btn btn-sm btn-outline">✎ Editar</a>
             </td>
           </tr>
           <?php endforeach; ?>
