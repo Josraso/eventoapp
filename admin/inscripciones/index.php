@@ -113,6 +113,7 @@ $stResumen->execute($params);
 $resumen = [];
 foreach ($stResumen->fetchAll() as $r) $resumen[$r['estado_pago']] = $r;
 
+$exportUrl = 'exportar.php?' . http_build_query(array_filter(['evento_id'=>$eventoFiltro,'estado'=>$estadoFiltro,'q'=>$q]));
 ?>
 
 <div class="filters">
@@ -135,6 +136,7 @@ foreach ($stResumen->fetchAll() as $r) $resumen[$r['estado_pago']] = $r;
       <a href="<?= h($base) ?>/admin/inscripciones/index.php" class="btn btn-sm btn-outline">✕ Limpiar</a>
     <?php endif; ?>
   </form>
+  <a href="<?= h($exportUrl) ?>" class="btn btn-sm btn-success">⬇ Excel</a>
 </div>
 
 <!-- Resumen rápido -->

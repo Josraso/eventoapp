@@ -1,6 +1,10 @@
 <?php
 require_once __DIR__ . '/../../lib/db.php';
 require_once __DIR__ . '/../../lib/Auth.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 Auth::adminCheck('superadmin', 'admin');
 
@@ -8,32 +12,35 @@ $eventoFiltro = (int)($_GET['evento_id'] ?? 0);
 $estadoFiltro = $_GET['estado'] ?? '';
 $q            = trim($_GET['q'] ?? '');
 
-$where  = ["i.estado_pago='pagado'"];
+$where  = ['1=1'];
 $params = [];
-if ($eventoFiltro) { $where[] = 'e.evento_id=?'; $params[] = $eventoFiltro; }
-if ($estadoFiltro === 'entrado')    $where[] = 'e.usado=1';
-if ($estadoFiltro === 'no_entrado') $where[] = 'e.usado=0';
+if ($eventoFiltro) { $where[] = 'i.evento_id=?'; $params[] = $eventoFiltro; }
+if ($estadoFiltro) { $where[] = 'i.estado_pago=?'; $params[] = $estadoFiltro; }
 if ($q) {
-    $qlike = '%' . $q . '%';
-    $where[] = '(e.nombre_asistente LIKE ? OR i.numero_pedido LIKE ? OR u.name LIKE ?)';
-    array_push($params, $qlike, $qlike, $qlike);
+    $qlike = '%'.$q.'%';
+    $where[] = '(i.numero_pedido LIKE ? OR u.name LIKE ? OR u.email LIKE ? OR EXISTS(SELECT 1 FROM entradas en WHERE en.inscripcion_id=i.id AND en.nombre_asistente LIKE ?))';
+    array_push($params, $qlike, $qlike, $qlike, $qlike);
 }
 $whereStr = implode(' AND ', $where);
 
-// Pedidos (un registro por pedido) que tienen al menos una entrada que cumple el filtro
+$campos = [];
+if ($eventoFiltro) {
+    $stC = db()->prepare('SELECT * FROM evento_campos WHERE evento_id=? ORDER BY sort_order');
+    $stC->execute([$eventoFiltro]);
+    $campos = $stC->fetchAll();
+}
+
 $stIns = db()->prepare("
-    SELECT DISTINCT i.*, ev.nombre as evento_nombre, ev.fecha_evento,
-           u.name as user_name, u.email as user_email, u.phone as user_phone,
-           (SELECT COUNT(*) FROM entradas en2 WHERE en2.inscripcion_id=i.id) as num_inscritos
-    FROM entradas e
-    JOIN inscripciones i ON i.id = e.inscripcion_id
-    JOIN eventos ev ON ev.id = e.evento_id
-    JOIN users u ON u.id = i.user_id
+    SELECT i.*, e.nombre as evento_nombre, e.fecha_evento, e.lugar,
+           u.name as user_name, u.email as user_email, u.phone as user_phone
+    FROM inscripciones i
+    JOIN eventos e ON e.id=i.evento_id
+    JOIN users u ON u.id=i.user_id
     WHERE $whereStr
     ORDER BY i.created_at DESC
 ");
 $stIns->execute($params);
-$pedidos = $stIns->fetchAll();
+$inscripciones = $stIns->fetchAll();
 
 $fname = 'inscritos';
 if ($eventoFiltro) {
@@ -42,37 +49,65 @@ if ($eventoFiltro) {
     $evNombre = preg_replace('/[^a-z0-9]/i', '_', $stEv->fetchColumn());
     $fname .= '_' . $evNombre;
 }
-$fname .= '_' . date('Ymd_His') . '.csv';
+$fname .= '_' . date('Ymd_His') . '.xlsx';
 
-header('Content-Type: text/csv; charset=UTF-8');
-header('Content-Disposition: attachment; filename="' . $fname . '"');
-header('Cache-Control: no-cache');
+$headers = ['Pedido','Evento','Fecha evento','Titular nombre','Titular email','Titular teléfono',
+            'Nombre asistente','Número asistente','Es titular',
+            'Método pago','Estado','Total (€)','Confirmado','Fecha inscripción'];
+foreach ($campos as $c) { $headers[] = $c['label']; }
+$headers[] = 'QR validado';
+$headers[] = 'QR validado fecha';
+$headers[] = 'Notas admin';
 
-$out = fopen('php://output', 'w');
-fwrite($out, "\xEF\xBB\xBF");
+$sheet = new Spreadsheet();
+$ws = $sheet->getActiveSheet();
+$ws->setTitle('Inscritos');
+$ws->fromArray($headers, null, 'A1');
+$lastCol = $ws->getCellByColumnAndRow(count($headers), 1)->getColumn();
+$ws->getStyle("A1:{$lastCol}1")->getFont()->setBold(true);
 
-fputcsv($out, [
-    'Pedido', 'Evento', 'Fecha evento', 'Titular nombre', 'Titular email', 'Titular teléfono',
-    'Método pago', 'Estado', 'Total (€)', 'Confirmado', 'Fecha inscripción',
-    'Cantidad de inscritos', 'Notas admin',
-], ';');
-
-foreach ($pedidos as $p) {
-    fputcsv($out, [
-        $p['numero_pedido'],
-        $p['evento_nombre'],
-        $p['fecha_evento'] ? date('d/m/Y H:i', strtotime($p['fecha_evento'])) : '',
-        $p['user_name'],
-        $p['user_email'],
-        $p['user_phone'] ?? '',
-        $p['metodo_pago'],
-        $p['estado_pago'],
-        number_format((float)$p['precio_total'], 2, ',', '.'),
-        $p['confirmado_at'] ? date('d/m/Y H:i', strtotime($p['confirmado_at'])) : '',
-        date('d/m/Y H:i', strtotime($p['created_at'])),
-        (int)$p['num_inscritos'],
-        $p['notas_admin'] ?? '',
-    ], ';');
+$row = 2;
+foreach ($inscripciones as $ins) {
+    $stEnt = db()->prepare('SELECT * FROM entradas WHERE inscripcion_id=? ORDER BY es_titular DESC, id ASC');
+    $stEnt->execute([$ins['id']]);
+    $entradas = $stEnt->fetchAll();
+    $numAsi = 0;
+    foreach ($entradas as $ent) {
+        $numAsi++;
+        $extras = !empty($ent['campos_extra']) ? (is_string($ent['campos_extra']) ? json_decode($ent['campos_extra'], true) : $ent['campos_extra']) : [];
+        $data = [
+            $ins['numero_pedido'],
+            $ins['evento_nombre'],
+            $ins['fecha_evento'] ? date('d/m/Y H:i', strtotime($ins['fecha_evento'])) : '',
+            $ins['user_name'],
+            $ins['user_email'],
+            $ins['user_phone'] ?? '',
+            $ent['nombre_asistente'],
+            $numAsi,
+            $ent['es_titular'] ? 'Sí' : 'No',
+            $ins['metodo_pago'],
+            $ins['estado_pago'],
+            number_format((float)$ins['precio_total'], 2, ',', '.'),
+            $ins['confirmado_at'] ? date('d/m/Y H:i', strtotime($ins['confirmado_at'])) : '',
+            date('d/m/Y H:i', strtotime($ins['created_at'])),
+        ];
+        foreach ($campos as $c) { $data[] = $extras[$c['nombre']] ?? ''; }
+        $data[] = $ent['usado'] ? 'Sí' : 'No';
+        $data[] = $ent['usado_at'] ? date('d/m/Y H:i', strtotime($ent['usado_at'])) : '';
+        $data[] = $ins['notas_admin'] ?? '';
+        $ws->fromArray($data, null, 'A' . $row);
+        $row++;
+    }
 }
-fclose($out);
+
+foreach (range('A', $ws->getHighestColumn()) as $col) {
+    $ws->getColumnDimension($col)->setAutoSize(true);
+}
+
+header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+header('Content-Disposition: attachment; filename="' . $fname . '"');
+header('Cache-Control: max-age=0');
+
+$writer = new Xlsx($sheet);
+$writer->save('php://output');
 exit;
