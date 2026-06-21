@@ -164,13 +164,22 @@ class TicketManager
             if ($v) $campos[] = [ucfirst(str_replace('_', ' ', $k)), $v];
         }
 
+        $lineH = 5;
         foreach ($campos as [$label, $valor]) {
-            $pdf->SetXY(10, $y);
             $pdf->SetFont('helvetica', 'B', 9);
-            $pdf->Cell(35, 6, strtoupper($label), 0, 0, 'L');
+            $labelLines = $pdf->getNumLines(strtoupper((string)$label), 35);
             $pdf->SetFont('helvetica', '', 10);
-            $pdf->MultiCell(90, 6, $valor, 0, 'L', false, 1);
-            $y = $pdf->GetY() + 1;
+            $valueLines = $pdf->getNumLines((string)$valor, 90);
+            $rowH = max($labelLines, $valueLines) * $lineH;
+
+            $pdf->SetFont('helvetica', 'B', 9);
+            $pdf->SetXY(10, $y);
+            $pdf->MultiCell(35, $lineH, strtoupper((string)$label), 0, 'L', false, 0);
+            $pdf->SetFont('helvetica', '', 10);
+            $pdf->SetXY(45, $y);
+            $pdf->MultiCell(90, $lineH, (string)$valor, 0, 'L', false, 0);
+
+            $y += $rowH + 1;
         }
 
         // QR

@@ -42,6 +42,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: ' . $base . '/admin/ajustes/index.php'); exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'resetear_instalacion') {
+    Auth::checkCsrf();
+    Auth::adminCheck('superadmin');
+
+    if (trim($_POST['confirmacion'] ?? '') !== 'RESETEAR') {
+        flash('error', 'Debes escribir RESETEAR para confirmar.');
+        header('Location: ' . $base . '/admin/ajustes/index.php'); exit;
+    }
+
+    $incluirAjustes = isset($_POST['incluir_ajustes']);
+
+    // Tablas de datos de uso (eventos, inscripciones, usuarios públicos, registros...).
+    // No se toca admin_users para no dejar al admin sin acceso al panel.
+    $tablasDatos = ['qr_logs', 'entradas', 'evento_campos', 'inscripciones', 'eventos', 'users', 'admin_log', 'portero_eventos'];
+
+    db()->exec('SET FOREIGN_KEY_CHECKS=0');
+    foreach ($tablasDatos as $t) {
+        db()->exec("TRUNCATE TABLE `$t`");
+    }
+    if ($incluirAjustes) {
+        db()->exec('TRUNCATE TABLE `settings`');
+    }
+    db()->exec('SET FOREIGN_KEY_CHECKS=1');
+
+    Auth::logAction('reset_instalacion', $incluirAjustes
+        ? 'Instalación reseteada (incluyendo ajustes)'
+        : 'Instalación reseteada (ajustes conservados)');
+    flash('ok', 'Instalación reseteada correctamente.');
+    header('Location: ' . $base . '/admin/ajustes/index.php'); exit;
+}
+
 $s = fn($k,$d='') => h(getSetting($k,$d));
 $isSuperAdmin = (Auth::adminRole() === 'superadmin');
 
@@ -165,6 +196,24 @@ require_once __DIR__ . '/../_header.php';
     </div>
   </div>
 </form>
+
+<div class="card" style="border-color:#fcc;margin-top:16px;">
+  <div class="card-title" style="color:#c0392b;">Zona peligrosa</div>
+  <p style="font-size:13px;color:#888;margin-bottom:14px;">
+    Resetea la instalación: elimina eventos, inscripciones, entradas, usuarios registrados y el registro de actividad.
+    Las cuentas de administradores y porteros NO se eliminan, para que no pierdas el acceso al panel.
+  </p>
+  <form method="POST" onsubmit="return confirm('¿Seguro? Esta acción no se puede deshacer.')">
+    <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
+    <input type="hidden" name="action" value="resetear_instalacion">
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;font-weight:normal;text-transform:none;">
+      <input type="checkbox" name="incluir_ajustes">
+      Resetear también los ajustes (Stripe, SMTP, Redsys, Bizum, transferencia, logo...)
+    </label>
+    <div class="field"><label>Escribe RESETEAR para confirmar</label><input type="text" name="confirmacion" placeholder="RESETEAR" autocomplete="off"></div>
+    <button type="submit" class="btn btn-danger">🗑 Resetear instalación</button>
+  </form>
+</div>
 <?php endif; ?>
 
 <?php require_once __DIR__ . '/../_footer.php'; ?>

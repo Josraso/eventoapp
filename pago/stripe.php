@@ -1,8 +1,8 @@
 <?php
-require_once __DIR__ . '/../../lib/db.php';
-require_once __DIR__ . '/../../lib/Auth.php';
-require_once __DIR__ . '/../../lib/TicketManager.php';
-require_once __DIR__ . '/../../lib/Mailer.php';
+require_once __DIR__ . '/../lib/db.php';
+require_once __DIR__ . '/../lib/Auth.php';
+require_once __DIR__ . '/../lib/TicketManager.php';
+require_once __DIR__ . '/../lib/Mailer.php';
 
 Auth::userCheck();
 
@@ -23,7 +23,7 @@ $stripeSecret = getSetting('stripe_secret_key');
 // Crear PaymentIntent si no existe
 $clientSecret = '';
 if ($stripeSecret) {
-    require_once __DIR__ . '/../../vendor/autoload.php';
+    require_once __DIR__ . '/../vendor/autoload.php';
     \Stripe\Stripe::setApiKey($stripeSecret);
     try {
         if ($ins['stripe_payment_intent']) {
