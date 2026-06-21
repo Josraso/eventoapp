@@ -277,6 +277,30 @@ function runMigrations(): void
             $pdo->exec("ALTER TABLE entradas ADD UNIQUE KEY uq_entradas_codigo_corto (codigo_corto)");
         }
 
+        // Columna admin_id en eventos (aislamiento multi-admin: cada evento pertenece a un admin)
+        $col = $pdo->query("SHOW COLUMNS FROM eventos LIKE 'admin_id'")->fetch();
+        if (!$col) {
+            $pdo->exec("ALTER TABLE eventos ADD COLUMN admin_id INT UNSIGNED NULL AFTER id");
+            $pdo->exec("ALTER TABLE eventos ADD INDEX idx_eventos_admin_id (admin_id)");
+            try {
+                $pdo->exec("ALTER TABLE eventos ADD CONSTRAINT fk_eventos_admin_id FOREIGN KEY (admin_id) REFERENCES admin_users(id) ON DELETE SET NULL");
+            } catch (Exception $e) {
+                // Si falla el FK (motor/orden de tablas), seguimos sin él; el índice ya filtra
+            }
+        }
+
+        // Columna lugar_url en eventos (enlace a Google Maps del lugar del evento)
+        $col = $pdo->query("SHOW COLUMNS FROM eventos LIKE 'lugar_url'")->fetch();
+        if (!$col) {
+            $pdo->exec("ALTER TABLE eventos ADD COLUMN lugar_url VARCHAR(500) NULL AFTER lugar");
+        }
+
+        // Valor 'fallido' en estado_pago de inscripciones (pedidos abandonados en pasarela)
+        $col = $pdo->query("SHOW COLUMNS FROM inscripciones LIKE 'estado_pago'")->fetch();
+        if ($col && stripos($col['Type'], "'fallido'") === false) {
+            $pdo->exec("ALTER TABLE inscripciones MODIFY estado_pago ENUM('pendiente','pagado','cancelado','reembolsado','fallido') DEFAULT 'pendiente'");
+        }
+
         // Auto-archivar eventos por fecha
         $pdo->exec("UPDATE eventos SET archivado=1, fecha_archivo=NOW()
             WHERE archivado=0 AND activo=1
