@@ -38,9 +38,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                ->execute([$nombre, $email, $telefono, password_hash($pass, PASSWORD_BCRYPT), $verifyToken]);
             $link = baseUrl() . '/public/verificar.php?token=' . $verifyToken;
             $m = new Mailer();
-            $m->send($email, $nombre, 'Verifica tu email — ' . $siteName, Mailer::tplVerificacion(['name' => $nombre], $link));
+            $res = $m->send($email, $nombre, 'Verifica tu email — ' . $siteName, Mailer::tplVerificacion(['name' => $nombre], $link));
             Auth::userLogin($email, $pass);
-            flash('ok', '¡Cuenta creada! Te enviamos un email de verificación.');
+            if ($res['ok']) {
+                flash('ok', '¡Cuenta creada! Te enviamos un email de verificación.');
+            } else {
+                flash('error', 'Cuenta creada, pero no pudimos enviarte el email de verificación (' . $res['error'] . '). Puedes reenviarlo desde "Mi cuenta".');
+            }
             redirect('mi-cuenta.php');
         }
     }

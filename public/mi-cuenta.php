@@ -67,6 +67,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
 
+    if ($_POST['action'] === 'reenviar_verificacion') {
+        if ($user['email_verified']) {
+            $success = 'Tu email ya está verificado.';
+        } else {
+            $verifyToken = generateToken(32);
+            db()->prepare('UPDATE users SET email_verify_token=? WHERE id=?')->execute([$verifyToken, $user['id']]);
+            $link = baseUrl() . '/public/verificar.php?token=' . $verifyToken;
+            $m = new Mailer();
+            $res = $m->send($user['email'], $user['name'], 'Verifica tu email — ' . $siteName, Mailer::tplVerificacion($user, $link));
+            if ($res['ok']) {
+                $success = 'Te hemos enviado un nuevo email de verificación a ' . $user['email'];
+            } else {
+                $error = 'No se pudo enviar el email: ' . $res['error'];
+            }
+        }
+    }
+
     if ($_POST['action'] === 'cambiar_password') {
         $cur  = $_POST['cur'] ?? '';
         $new  = $_POST['new'] ?? '';
@@ -134,6 +151,11 @@ $inscripciones = $stIns->fetchAll();
     <p style="font-size:14px;color:#888;margin-bottom:24px;">Hola, <strong><?= h($user['name']) ?></strong>
       <?php if (!$user['email_verified']): ?>
         <span class="badge badge-orange">Email sin verificar</span>
+        <form method="POST" style="display:inline-block;margin-left:6px;">
+          <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
+          <input type="hidden" name="action" value="reenviar_verificacion">
+          <button type="submit" class="btn btn-sm btn-outline" style="vertical-align:middle;">Reenviar email de verificación</button>
+        </form>
       <?php endif; ?>
     </p>
 

@@ -46,13 +46,13 @@ class TicketManager
         if (file_exists($autoload)) {
             require_once $autoload;
             try {
-                $qrCode = \Endroid\QrCode\QrCode::create($qrContent)
-                    ->setSize(300)
-                    ->setMargin(10);
+                $qrCode = new \Endroid\QrCode\QrCode(data: $qrContent, size: 300, margin: 10);
                 $writer = new \Endroid\QrCode\Writer\PngWriter();
                 $result = $writer->write($qrCode);
                 return base64_encode($result->getString());
-            } catch (Exception $e) {}
+            } catch (\Throwable $e) {
+                error_log('Error generando QR: ' . $e->getMessage());
+            }
         }
         // Fallback: QR via API pública (solo desarrollo)
         return '';
