@@ -121,6 +121,10 @@ require_once __DIR__ . '/../_header.php';
 
 <?php if ($error): ?><div class="alert alert-error"><?= h($error) ?></div><?php endif; ?>
 
+<div class="alert alert-info" style="font-size:13px;">
+  📲 Los camareros deben entrar desde esta URL para vender y validar consumiciones: <strong><?= h($base) ?>/qr-reader/barra.php</strong>
+</div>
+
 <div style="display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start;">
   <div>
     <div class="card" style="padding:0;">

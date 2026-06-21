@@ -142,6 +142,9 @@ foreach ($inscripciones as $ins) {
 .entrada-token { font-family: monospace; font-size: 11px; color: #aaa; }
 .enviar-form { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0f0f0; }
 .enviar-form.open { display: block; }
+.pedido-box { border: 1px solid #e4e4e8; border-radius: 10px; padding: 16px 18px; }
+.canjeadas-toggle { font-size: 12px; color: #888; cursor: pointer; margin-top: 8px; user-select: none; }
+.canjeadas-toggle:hover { color: #1a1a1a; }
 </style>
 </head>
 <body>
@@ -203,14 +206,18 @@ foreach ($inscripciones as $ins) {
             </div>
           </div>
 
-          <div style="padding:20px 24px;">
+          <div style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;">
           <?php foreach ($grupo['pedidos'] as $i => $ins):
             $stEnt = db()->prepare('SELECT * FROM entradas WHERE inscripcion_id=? ORDER BY es_titular DESC, id ASC');
             $stEnt->execute([$ins['id']]);
             $entradas = $stEnt->fetchAll();
+            $entradasActivas = array_filter($entradas, fn($e) => !$e['usado']);
+            $entradasCanjeadas = array_filter($entradas, fn($e) => $e['usado']);
             $stCons = db()->prepare('SELECT c.*, p.nombre as producto_nombre FROM consumiciones c JOIN productos_consumicion p ON p.id=c.producto_id WHERE c.inscripcion_id=? ORDER BY c.id ASC');
             $stCons->execute([$ins['id']]);
             $consumiciones = $stCons->fetchAll();
+            $consActivas = array_filter($consumiciones, fn($c) => !$c['usado']);
+            $consCanjeadas = array_filter($consumiciones, fn($c) => $c['usado']);
             $badgeClass = match($ins['estado_pago']) {
                 'pagado'      => 'badge-green',
                 'pendiente'   => 'badge-orange',
@@ -224,7 +231,7 @@ foreach ($inscripciones as $ins) {
                 default     => $ins['estado_pago'],
             };
           ?>
-          <div <?= $i > 0 ? 'style="border-top:1px solid #f0f0f0;padding-top:16px;margin-top:16px;"' : '' ?>>
+          <div class="pedido-box">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
             <div style="font-size:12px;color:#aaa;">Pedido: <?= h($ins['numero_pedido']) ?> &middot; <?= date('d/m/Y', strtotime($ins['created_at'])) ?></div>
             <div style="text-align:right;">
@@ -243,9 +250,12 @@ foreach ($inscripciones as $ins) {
 
           <?php if ($ins['estado_pago'] === 'pagado' && !empty($entradas)): ?>
             <div style="font-size:12px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">
-              Entradas (<?= count($entradas) ?>)
+              Entradas (<?= count($entradasActivas) ?>)
             </div>
-            <?php foreach ($entradas as $ent): ?>
+            <?php if (empty($entradasActivas)): ?>
+              <p style="font-size:13px;color:#aaa;margin-bottom:10px;">Todas las entradas de este pedido ya han sido canjeadas.</p>
+            <?php endif; ?>
+            <?php foreach ($entradasActivas as $ent): ?>
             <div class="entrada-item">
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                 <div>
@@ -274,13 +284,38 @@ foreach ($inscripciones as $ins) {
               </div>
             </div>
             <?php endforeach; ?>
+
+            <?php if (!empty($entradasCanjeadas)): ?>
+            <div class="canjeadas-toggle" onclick="toggleCanjeadas('entCanj-<?= $ins['id'] ?>')">▾ Ver entradas canjeadas (<?= count($entradasCanjeadas) ?>)</div>
+            <div id="entCanj-<?= $ins['id'] ?>" style="display:none;margin-top:8px;">
+              <?php foreach ($entradasCanjeadas as $ent): ?>
+              <div class="entrada-item" style="opacity:.6;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                  <div>
+                    <div class="entrada-nombre"><?= h($ent['nombre_asistente']) ?> <?= $ent['es_titular'] ? '<span class="badge badge-blue">titular</span>' : '' ?></div>
+                    <div class="entrada-token">QR: <?= h(substr($ent['qr_token'], 0, 16)) ?>...</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <span class="badge badge-green">✓ Canjeada</span>
+                    <?php if ($ent['usado_at']): ?>
+                      <div style="font-size:11px;color:#aaa;margin-top:2px;"><?= date('d/m/Y H:i', strtotime($ent['usado_at'])) ?></div>
+                    <?php endif; ?>
+                  </div>
+                </div>
+              </div>
+              <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
           <?php endif; ?>
 
           <?php if ($ins['estado_pago'] === 'pagado' && !empty($consumiciones)): ?>
             <div style="font-size:12px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;margin-top:14px;">
-              Consumiciones (<?= count($consumiciones) ?>)
+              Consumiciones (<?= count($consActivas) ?>)
             </div>
-            <?php foreach ($consumiciones as $cons): ?>
+            <?php if (empty($consActivas)): ?>
+              <p style="font-size:13px;color:#aaa;margin-bottom:10px;">Todas las consumiciones de este pedido ya han sido canjeadas.</p>
+            <?php endif; ?>
+            <?php foreach ($consActivas as $cons): ?>
             <div class="entrada-item">
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                 <div>
@@ -288,21 +323,36 @@ foreach ($inscripciones as $ins) {
                   <div class="entrada-token">QR: <?= h(substr($cons['qr_token'], 0, 16)) ?>...<?= !empty($cons['codigo_corto']) ? ' &middot; Código: <strong>' . h($cons['codigo_corto']) . '</strong>' : '' ?></div>
                 </div>
                 <div style="text-align:right;">
-                  <?php if ($cons['usado']): ?>
-                    <span class="badge badge-green">✓ Canjeada</span>
-                    <?php if ($cons['usado_at']): ?>
-                      <div style="font-size:11px;color:#aaa;margin-top:2px;"><?= date('d/m/Y H:i', strtotime($cons['usado_at'])) ?></div>
-                    <?php endif; ?>
-                  <?php else: ?>
-                    <span class="badge badge-gray">Pendiente</span>
-                    <div style="margin-top:6px;">
-                      <button type="button" class="btn btn-sm btn-success" onclick="mostrarQR('consumicion', <?= $cons['id'] ?>, '<?= h(addslashes($cons['producto_nombre'])) ?>')">📱 Mostrar QR</button>
-                    </div>
-                  <?php endif; ?>
+                  <span class="badge badge-gray">Pendiente</span>
+                  <div style="margin-top:6px;">
+                    <button type="button" class="btn btn-sm btn-success" onclick="mostrarQR('consumicion', <?= $cons['id'] ?>, '<?= h(addslashes($cons['producto_nombre'])) ?>')">📱 Mostrar QR</button>
+                  </div>
                 </div>
               </div>
             </div>
             <?php endforeach; ?>
+
+            <?php if (!empty($consCanjeadas)): ?>
+            <div class="canjeadas-toggle" onclick="toggleCanjeadas('consCanj-<?= $ins['id'] ?>')">▾ Ver consumiciones canjeadas (<?= count($consCanjeadas) ?>)</div>
+            <div id="consCanj-<?= $ins['id'] ?>" style="display:none;margin-top:8px;">
+              <?php foreach ($consCanjeadas as $cons): ?>
+              <div class="entrada-item" style="opacity:.6;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                  <div>
+                    <div class="entrada-nombre"><?= h($cons['producto_nombre']) ?></div>
+                    <div class="entrada-token">QR: <?= h(substr($cons['qr_token'], 0, 16)) ?>...</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <span class="badge badge-green">✓ Canjeada</span>
+                    <?php if ($cons['usado_at']): ?>
+                      <div style="font-size:11px;color:#aaa;margin-top:2px;"><?= date('d/m/Y H:i', strtotime($cons['usado_at'])) ?></div>
+                    <?php endif; ?>
+                  </div>
+                </div>
+              </div>
+              <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
           <?php endif; ?>
           </div>
           <?php endforeach; ?>
@@ -366,6 +416,10 @@ function mostrarQR(tipo, id, nombre) {
 }
 function cerrarQR() {
     document.getElementById('qrModal').style.display = 'none';
+}
+function toggleCanjeadas(id) {
+    var el = document.getElementById(id);
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 </script>
 </body>

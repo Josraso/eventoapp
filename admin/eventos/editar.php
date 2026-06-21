@@ -56,6 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fecha_limite = $_POST['fecha_limite'] ?: null;
         $metodos     = array_filter($_POST['metodos_pago'] ?? ['stripe']);
         $metodos_str = implode(',', $metodos);
+        $metodosBarra     = array_filter($_POST['metodos_pago_barra'] ?? ['stripe']);
+        $metodosBarra_str = implode(',', $metodosBarra);
         $campo_qr    = trim($_POST['campo_qr_extra'] ?? '');
         $activo      = isset($_POST['activo']) ? 1 : 0;
         $archivado   = isset($_POST['archivado']) ? 1 : 0;
@@ -98,8 +100,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$error) {
             if ($id) {
                 $admin_id_anterior = (int)$evento['admin_id'];
-                db()->prepare('UPDATE eventos SET nombre=?,slug=?,descripcion=?,imagen=?,fecha_evento=?,lugar=?,lugar_url=?,precio=?,es_gratuito=?,max_inscritos=?,fecha_limite_inscripcion=?,metodos_pago=?,campo_qr_extra=?,activo=?,archivado=?,sort_order=?,admin_id=?,updated_at=NOW() WHERE id=?')
-                   ->execute([$nombre,$slug,$descripcion,$imagen,$fecha_evento,$lugar,$lugar_url,$precio,$es_gratuito,$max_inscritos,$fecha_limite,$metodos_str,$campo_qr,$activo,$archivado,$sort_order,$admin_id_evento,$id]);
+                db()->prepare('UPDATE eventos SET nombre=?,slug=?,descripcion=?,imagen=?,fecha_evento=?,lugar=?,lugar_url=?,precio=?,es_gratuito=?,max_inscritos=?,fecha_limite_inscripcion=?,metodos_pago=?,metodos_pago_barra=?,campo_qr_extra=?,activo=?,archivado=?,sort_order=?,admin_id=?,updated_at=NOW() WHERE id=?')
+                   ->execute([$nombre,$slug,$descripcion,$imagen,$fecha_evento,$lugar,$lugar_url,$precio,$es_gratuito,$max_inscritos,$fecha_limite,$metodos_str,$metodosBarra_str,$campo_qr,$activo,$archivado,$sort_order,$admin_id_evento,$id]);
 
                 // Si se reasigna el propietario del evento, los porteros asignados a este
                 // evento se transfieren con él (su creado_por pasa al nuevo admin), para
@@ -109,8 +111,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                        ->execute([$admin_id_evento, $id]);
                 }
             } else {
-                db()->prepare('INSERT INTO eventos (nombre,slug,descripcion,imagen,fecha_evento,lugar,lugar_url,precio,es_gratuito,max_inscritos,fecha_limite_inscripcion,metodos_pago,campo_qr_extra,activo,sort_order,admin_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-                   ->execute([$nombre,$slug,$descripcion,$imagen,$fecha_evento,$lugar,$lugar_url,$precio,$es_gratuito,$max_inscritos,$fecha_limite,$metodos_str,$campo_qr,$activo,$sort_order,$admin_id_evento]);
+                db()->prepare('INSERT INTO eventos (nombre,slug,descripcion,imagen,fecha_evento,lugar,lugar_url,precio,es_gratuito,max_inscritos,fecha_limite_inscripcion,metodos_pago,metodos_pago_barra,campo_qr_extra,activo,sort_order,admin_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+                   ->execute([$nombre,$slug,$descripcion,$imagen,$fecha_evento,$lugar,$lugar_url,$precio,$es_gratuito,$max_inscritos,$fecha_limite,$metodos_str,$metodosBarra_str,$campo_qr,$activo,$sort_order,$admin_id_evento]);
                 $id = (int)db()->lastInsertId();
             }
 
@@ -458,6 +460,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endforeach; ?>
       </div>
       <button type="button" onclick="addProducto()" class="btn btn-sm btn-outline">+ Añadir producto</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Métodos de pago para la barra</div>
+      <p style="font-size:13px;color:#888;margin-bottom:14px;">Pueden ser distintos a los de las entradas. Se usan cuando alguien compra consumiciones sin entrada.</p>
+      <?php
+      $metodosBarraActivos = array_filter(explode(',', $evento['metodos_pago_barra'] ?? 'stripe'));
+      foreach (['stripe'=>'💳 Stripe','redsys'=>'🏧 Redsys','bizum'=>'📱 Bizum','transferencia'=>'🏦 Transferencia'] as $k=>$v):
+      ?>
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px;text-transform:none;font-weight:normal;margin-bottom:8px;">
+        <input type="checkbox" name="metodos_pago_barra[]" value="<?= $k ?>" <?= in_array($k,$metodosBarraActivos)?'checked':'' ?>>
+        <?= $v ?>
+      </label>
+      <?php endforeach; ?>
     </div>
   </div><!-- /evento-tab-barra -->
 

@@ -295,6 +295,12 @@ function runMigrations(): void
             $pdo->exec("ALTER TABLE eventos ADD COLUMN lugar_url VARCHAR(500) NULL AFTER lugar");
         }
 
+        // Columna metodos_pago_barra en eventos (métodos de pago propios para compras solo de barra)
+        $col = $pdo->query("SHOW COLUMNS FROM eventos LIKE 'metodos_pago_barra'")->fetch();
+        if (!$col) {
+            $pdo->exec("ALTER TABLE eventos ADD COLUMN metodos_pago_barra VARCHAR(200) DEFAULT 'stripe' AFTER metodos_pago");
+        }
+
         // Valor 'fallido' en estado_pago de inscripciones (pedidos abandonados en pasarela)
         $col = $pdo->query("SHOW COLUMNS FROM inscripciones LIKE 'estado_pago'")->fetch();
         if ($col && stripos($col['Type'], "'fallido'") === false) {

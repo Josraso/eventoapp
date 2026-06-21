@@ -536,20 +536,25 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
       <!-- PRODUCTOS DE BARRA -->
       <?php if (!empty($productosBarra)): ?>
       <div class="card">
-        <div class="card-title">🍹 Consumiciones (opcional)</div>
-        <p style="font-size:13px;color:#888;margin-bottom:14px;">Añade tickets de barra para no tener que pagar en efectivo el día del evento.</p>
-        <?php foreach ($productosBarra as $p): ?>
-        <div class="field-row" style="align-items:center;">
-          <div class="field" style="flex:1;margin-bottom:8px;">
-            <label style="text-transform:none;font-weight:600;font-size:14px;"><?= h($p['nombre']) ?> — <?= number_format((float)$p['precio'], 2, ',', '.') ?> €</label>
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;font-weight:600;">
+          <input type="checkbox" id="quiereConsumiciones" onchange="document.getElementById('consumiciones-wrap').style.display=this.checked?'':'none';if(!this.checked){document.querySelectorAll('.consumicion-qty').forEach(function(el){el.value=0});recalcularTotal();}">
+          🍹 Quiero añadir consumiciones de paso (opcional)
+        </label>
+        <p style="font-size:12px;color:#888;margin:6px 0 0;">Si solo quieres comprar consumiciones sin entrada, <a href="barra.php?slug=<?= urlencode($slug) ?>">hazlo aquí</a>.</p>
+        <div id="consumiciones-wrap" style="display:none;margin-top:14px;">
+          <?php foreach ($productosBarra as $p): ?>
+          <div class="field-row" style="align-items:center;">
+            <div class="field" style="flex:1;margin-bottom:8px;">
+              <label style="text-transform:none;font-weight:600;font-size:14px;"><?= h($p['nombre']) ?> — <?= number_format((float)$p['precio'], 2, ',', '.') ?> €</label>
+            </div>
+            <div class="field" style="max-width:90px;margin-bottom:8px;">
+              <input type="number" name="consumiciones[<?= $p['id'] ?>]" value="0" min="0" max="50"
+                     class="consumicion-qty" data-precio="<?= h(number_format((float)$p['precio'], 2, '.', '')) ?>"
+                     onchange="recalcularTotal()">
+            </div>
           </div>
-          <div class="field" style="max-width:90px;margin-bottom:8px;">
-            <input type="number" name="consumiciones[<?= $p['id'] ?>]" value="0" min="0" max="50"
-                   class="consumicion-qty" data-precio="<?= h(number_format((float)$p['precio'], 2, '.', '')) ?>"
-                   onchange="recalcularTotal()">
-          </div>
+          <?php endforeach; ?>
         </div>
-        <?php endforeach; ?>
       </div>
       <?php endif; ?>
 

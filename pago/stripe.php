@@ -70,7 +70,9 @@ if ($stripeSecret) {
         <table style="width:100%;font-size:14px;">
           <tr><td style="color:#888;padding:6px 0;">Evento</td><td style="font-weight:600;text-align:right;"><?= h($ins['evento_nombre']) ?></td></tr>
           <tr><td style="color:#888;padding:6px 0;">Pedido</td><td style="font-family:monospace;text-align:right;"><?= h($ins['numero_pedido']) ?></td></tr>
+          <?php if ((int)$ins['num_personas'] > 0): ?>
           <tr><td style="color:#888;padding:6px 0;">Personas</td><td style="font-weight:600;text-align:right;"><?= (int)$ins['num_personas'] ?></td></tr>
+          <?php endif; ?>
           <tr><td style="color:#888;padding:6px 0;"><strong>Total</strong></td><td style="font-weight:800;font-size:18px;text-align:right;"><?= number_format((float)$ins['precio_total'],2,',','.') ?> €</td></tr>
         </table>
       </div>
