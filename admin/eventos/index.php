@@ -51,7 +51,7 @@ $where  = match($filtro) {
 
 $eventos = db()->query("
     SELECT e.*,
-        (SELECT COUNT(*) FROM inscripciones i WHERE i.evento_id=e.id AND i.estado_pago='pagado') as total_pagados,
+        (SELECT COUNT(*) FROM entradas en JOIN inscripciones i ON i.id=en.inscripcion_id WHERE i.evento_id=e.id AND i.estado_pago='pagado') as total_pagados,
         (SELECT COUNT(*) FROM inscripciones i WHERE i.evento_id=e.id AND i.estado_pago='pendiente') as total_pendientes
     FROM eventos e $where
     ORDER BY e.archivado ASC, e.sort_order ASC, e.fecha_evento DESC
@@ -104,7 +104,8 @@ $eventos = db()->query("
             <td>
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 <a href="<?= h($base) ?>/admin/eventos/editar.php?id=<?= $ev['id'] ?>" class="btn btn-sm btn-outline">✏️ Editar</a>
-                <a href="<?= h($base) ?>/admin/inscripciones/index.php?evento_id=<?= $ev['id'] ?>" class="btn btn-sm btn-outline">📋 Inscritos</a>
+                <a href="<?= h($base) ?>/admin/inscripciones/index.php?evento_id=<?= $ev['id'] ?>" class="btn btn-sm btn-outline">📋 Pedidos</a>
+                <a href="<?= h($base) ?>/admin/inscritos/index.php?evento_id=<?= $ev['id'] ?>" class="btn btn-sm btn-outline">🧍 Inscritos</a>
                 <form method="POST" style="display:inline;">
                   <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
                   <input type="hidden" name="evento_id" value="<?= $ev['id'] ?>">

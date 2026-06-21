@@ -5,5 +5,10 @@ RewriteEngine On
     Require all denied
 </Files>
 
-# Bloquea acceso directo a directorios sensibles
-RewriteRule ^(storage|logs|lib|vendor)/ - [F,L]
+# Bloquea acceso directo a directorios sensibles (logs, lib, vendor: siempre privados)
+RewriteRule ^(logs|lib|vendor)/ - [F,L]
+
+# storage/ es privado salvo las imágenes públicas (logo, imágenes de eventos),
+# que sí se muestran directamente con <img src="storage/...">
+RewriteRule ^storage/entradas/ - [F,L]
+RewriteRule ^storage/(?!imagenes/|logo\.) - [F,L]

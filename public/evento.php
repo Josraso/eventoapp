@@ -17,7 +17,7 @@ if (!$evento) {
 }
 
 // Comprobar disponibilidad
-$stCnt = db()->prepare("SELECT COUNT(*) FROM inscripciones WHERE evento_id=? AND estado_pago='pagado'");
+$stCnt = db()->prepare("SELECT COUNT(*) FROM entradas en JOIN inscripciones i ON i.id=en.inscripcion_id WHERE i.evento_id=? AND i.estado_pago='pagado'");
 $stCnt->execute([$evento['id']]);
 $totalInscritos = (int)$stCnt->fetchColumn();
 $lleno   = $evento['max_inscritos'] && $totalInscritos >= $evento['max_inscritos'];

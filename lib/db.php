@@ -270,10 +270,28 @@ function runMigrations(): void
             `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+        // Columna codigo_corto en entradas (código manual de 6 caracteres, alternativa al QR largo)
+        $col = $pdo->query("SHOW COLUMNS FROM entradas LIKE 'codigo_corto'")->fetch();
+        if (!$col) {
+            $pdo->exec("ALTER TABLE entradas ADD COLUMN codigo_corto VARCHAR(8) NULL AFTER qr_hash");
+            $pdo->exec("ALTER TABLE entradas ADD UNIQUE KEY uq_entradas_codigo_corto (codigo_corto)");
+        }
+
         // Auto-archivar eventos por fecha
         $pdo->exec("UPDATE eventos SET archivado=1, fecha_archivo=NOW()
             WHERE archivado=0 AND activo=1
             AND fecha_evento IS NOT NULL AND fecha_evento < DATE_SUB(NOW(), INTERVAL 1 DAY)");
+
+        // Generar codigo_corto para entradas antiguas que no lo tengan
+        $stSinCodigo = $pdo->query("SELECT id FROM entradas WHERE codigo_corto IS NULL LIMIT 500");
+        $idsSinCodigo = $stSinCodigo->fetchAll(PDO::FETCH_COLUMN);
+        if ($idsSinCodigo) {
+            require_once __DIR__ . '/TicketManager.php';
+            $stUpd = $pdo->prepare('UPDATE entradas SET codigo_corto=? WHERE id=?');
+            foreach ($idsSinCodigo as $entId) {
+                $stUpd->execute([TicketManager::generarCodigoCorto(), $entId]);
+            }
+        }
 
     } catch (Exception $e) {
         // Ignorar durante instalación

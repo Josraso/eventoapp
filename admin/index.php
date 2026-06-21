@@ -34,7 +34,7 @@ $topEventos = db()->query("
 
 <div class="stat-grid">
   <div class="stat-box"><div class="val"><?= (int)$stats['eventos_activos'] ?></div><div class="lbl">Eventos activos</div></div>
-  <div class="stat-box"><div class="val"><?= (int)$stats['inscripciones_pagadas'] ?></div><div class="lbl">Inscripciones pagadas</div></div>
+  <div class="stat-box"><div class="val"><?= (int)$stats['inscripciones_pagadas'] ?></div><div class="lbl">Pedidos pagados</div></div>
   <div class="stat-box" style="<?= $stats['inscripciones_pendientes']>0?'border-color:#f0d98a;':'' ?>">
     <div class="val" style="<?= $stats['inscripciones_pendientes']>0?'color:#c87f00;':'' ?>"><?= (int)$stats['inscripciones_pendientes'] ?></div>
     <div class="lbl">Pendientes de pago</div>

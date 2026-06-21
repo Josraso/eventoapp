@@ -235,16 +235,8 @@ $total = (int)$stTotal->fetchColumn();
   </div>
 </div>
 
-<script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.min.js" onerror="cargarJsQRFallback()"></script>
+<script src="vendor/jsQR.js"></script>
 <script>
-function cargarJsQRFallback() {
-    var s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js';
-    s.onerror = function () { mostrarErrorCamara('No se pudo cargar el lector de QR (jsQR). Comprueba la conexión a internet.'); };
-    s.onload = iniciarCamara;
-    document.head.appendChild(s);
-}
-
 var eventoId = <?= $eventoId ?>;
 var scanning = true;
 var lastToken = '';
@@ -255,22 +247,22 @@ var video = document.getElementById('qr-video');
 var canvas = document.createElement('canvas');
 var ctx = canvas.getContext('2d');
 
-function mostrarErrorCamara(msg) {
-    document.getElementById('qr-container').innerHTML =
-        '<p style="color:#888;text-align:center;padding:40px 20px;">' + msg + '<br>Usa el campo manual.</p>';
+function avisoCamara(msg) {
+    var aviso = document.getElementById('aviso-camara');
+    if (!aviso) {
+        aviso = document.createElement('p');
+        aviso.id = 'aviso-camara';
+        aviso.style.cssText = 'color:#888;text-align:center;padding:10px 20px;font-size:13px;';
+        document.getElementById('qr-container').insertAdjacentElement('afterend', aviso);
+    }
+    aviso.innerHTML = msg;
 }
 
+// Siempre intentamos abrir la cámara: el navegador es quien decide si puede o no,
+// no bloqueamos nosotros de antemano (eso impedía abrir la cámara en sitios que sí podían).
 function iniciarCamara() {
-    if (typeof jsQR !== 'function') {
-        mostrarErrorCamara('No se pudo cargar el lector de QR (jsQR).');
-        return;
-    }
-    if (!window.isSecureContext) {
-        mostrarErrorCamara('La cámara requiere acceso por HTTPS.');
-        return;
-    }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        mostrarErrorCamara('Este navegador no permite acceder a la cámara.');
+        avisoCamara('Este navegador no permite acceder a la cámara. Usa el campo manual.');
         return;
     }
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
@@ -280,18 +272,16 @@ function iniciarCamara() {
             requestAnimationFrame(scanFrame);
         })
         .catch(function(err) {
-            mostrarErrorCamara('Cámara no disponible (' + (err.name || 'error') + ').');
+            avisoCamara('Cámara no disponible (' + (err.name || 'error') + '). Usa el campo manual.');
         });
 }
 
-// Si el script ya cargó síncronamente (caso normal), arranca; si no, onload del <script> lo hará.
-if (typeof jsQR === 'function') iniciarCamara();
-else document.querySelector('script[src*="jsqr"]').addEventListener('load', iniciarCamara);
+iniciarCamara();
 
 function scanFrame() {
     if (!scanning || cooldown) { requestAnimationFrame(scanFrame); return; }
     try {
-        if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+        if (typeof jsQR === 'function' && video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
             canvas.width  = video.videoWidth;
             canvas.height = video.videoHeight;
             ctx.drawImage(video, 0, 0);

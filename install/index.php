@@ -121,7 +121,8 @@ if ($step === 3 && $_SERVER['REQUEST_METHOD'] === 'POST') {
             ] as $dir) {
                 if (!is_dir($dir)) mkdir($dir, 0750, true);
             }
-            file_put_contents(__DIR__.'/../storage/.htaccess', "Options -Indexes\nRequire all denied\n");
+            file_put_contents(__DIR__.'/../storage/.htaccess', "Options -Indexes\n\n<FilesMatch \"\\.(php|phtml|php\\d?)\$\">\n    Require all denied\n</FilesMatch>\n");
+            file_put_contents(__DIR__.'/../storage/entradas/.htaccess', "Require all denied\n");
             file_put_contents(__DIR__.'/../logs/.htaccess',    "Options -Indexes\nRequire all denied\n");
 
             unset($_SESSION['install']);

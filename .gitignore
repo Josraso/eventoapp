@@ -5,6 +5,7 @@
 !/storage/entradas/
 /storage/entradas/*
 !/storage/entradas/.gitkeep
+!/storage/entradas/.htaccess
 
 /logs/*
 !/logs/.htaccess
