@@ -33,6 +33,11 @@ $campos = $campos->fetchAll();
 // Métodos de pago activos para este evento
 $metodosActivos = array_filter(explode(',', $evento['metodos_pago'] ?? ''));
 
+// Productos de barra disponibles para comprar junto con la entrada
+$stProd = db()->prepare('SELECT * FROM productos_consumicion WHERE evento_id=? AND activo=1 ORDER BY sort_order ASC');
+$stProd->execute([$evento['id']]);
+$productosBarra = $stProd->fetchAll();
+
 $siteName = getSetting('site_name', 'Eventos');
 $logoPath = getSetting('logo_path');
 $logoUrl  = ($logoPath && file_exists(__DIR__.'/../'.$logoPath)) ? '../'.$logoPath : null;
@@ -123,7 +128,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $numPersonas = max(1, min(20, (int)($_POST['num_personas'] ?? 1)));
         $metodoPago  = $_POST['metodo_pago'] ?? '';
 
-        if (!in_array($metodoPago, $metodosActivos))
+        // Consumiciones de barra seleccionadas (producto_id => cantidad)
+        $consumicionesSeleccion = [];
+        $consumicionesTotal = 0.0;
+        $productosBarraPorId = array_column($productosBarra, null, 'id');
+        foreach ($_POST['consumiciones'] ?? [] as $pid => $qty) {
+            $pid = (int)$pid;
+            $qty = max(0, min(50, (int)$qty));
+            if ($qty <= 0 || !isset($productosBarraPorId[$pid])) continue;
+            $consumicionesSeleccion[$pid] = $qty;
+            $consumicionesTotal += (float)$productosBarraPorId[$pid]['precio'] * $qty;
+        }
+
+        $esGratuitoReal = $evento['es_gratuito'] && $consumicionesTotal <= 0;
+        if (!$esGratuitoReal && !in_array($metodoPago, $metodosActivos) && $metodoPago !== 'gratis')
             $error = 'Método de pago no válido.';
 
         $yoAsisto = isset($_POST['yo_asisto']);
@@ -147,7 +165,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
 
         if (!$error) {
-            $precioTotal = $evento['es_gratuito'] ? 0 : (float)$evento['precio'] * $numPersonas;
+            $precioEntradas = $evento['es_gratuito'] ? 0 : (float)$evento['precio'] * $numPersonas;
+            $precioTotal = $precioEntradas + $consumicionesTotal;
+            if ($precioTotal <= 0) $metodoPago = 'gratis';
             $numeroPedido = TicketManager::generarNumeroPedido();
 
             // Insertar inscripción. Stripe/Redsys se crean como 'fallido' desde el inicio
@@ -171,6 +191,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $qrData2 = TicketManager::generarQRToken($entradaId, $evento['id'], $inscripcionId);
                 db()->prepare('UPDATE entradas SET qr_token=?,qr_hash=? WHERE id=?')
                    ->execute([$qrData2['token'], $qrData2['hash'], $entradaId]);
+            }
+
+            // Insertar consumiciones de barra seleccionadas, asociadas al mismo pedido
+            foreach ($consumicionesSeleccion as $pid => $qty) {
+                TicketManager::crearConsumiciones($pid, $qty, $inscripcionId, 'online');
             }
 
             // Guardar en sesión para el proceso de pago
@@ -495,10 +520,33 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
         <?php endfor; ?>
       </div>
 
+      <!-- PRODUCTOS DE BARRA -->
+      <?php if (!empty($productosBarra)): ?>
+      <div class="card">
+        <div class="card-title">🍹 Consumiciones (opcional)</div>
+        <p style="font-size:13px;color:#888;margin-bottom:14px;">Añade tickets de barra para no tener que pagar en efectivo el día del evento.</p>
+        <?php foreach ($productosBarra as $p): ?>
+        <div class="field-row" style="align-items:center;">
+          <div class="field" style="flex:1;margin-bottom:8px;">
+            <label style="text-transform:none;font-weight:600;font-size:14px;"><?= h($p['nombre']) ?> — <?= number_format((float)$p['precio'], 2, ',', '.') ?> €</label>
+          </div>
+          <div class="field" style="max-width:90px;margin-bottom:8px;">
+            <input type="number" name="consumiciones[<?= $p['id'] ?>]" value="0" min="0" max="50"
+                   class="consumicion-qty" data-precio="<?= h(number_format((float)$p['precio'], 2, '.', '')) ?>"
+                   onchange="recalcularTotal()">
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      <?php endif; ?>
+
       <!-- MÉTODO DE PAGO -->
-      <?php if (!$evento['es_gratuito']): ?>
+      <?php if (!$evento['es_gratuito'] || !empty($productosBarra)): ?>
       <div class="card">
         <div class="card-title">Método de pago</div>
+        <?php if ($evento['es_gratuito']): ?>
+          <p style="font-size:12px;color:#888;margin-bottom:10px;">El evento es gratuito; este método de pago solo se usará si añades consumiciones.</p>
+        <?php endif; ?>
         <div class="metodo-pago-list">
           <?php
           $metodosInfo = [
@@ -553,8 +601,11 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
     var maxPersonas = <?= min($maxPlazas, 20) ?>;
     var nombreUsuario = <?= json_encode($user['name']) ?>;
 
+var numPersonasActual = 1;
+
     function actualizarPersonas(n) {
         n = parseInt(n);
+        numPersonasActual = n;
         for (var i = 1; i <= maxPersonas; i++) {
             var block = document.getElementById('asistente_' + i);
             if (!block) continue;
@@ -565,13 +616,24 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
                 el.disabled = (i > n);
             });
         }
-        if (!esGratis) {
-            var total = precioUnitario * n;
-            document.getElementById('precioTotal').textContent = total.toFixed(2).replace('.', ',') + ' €';
-            document.getElementById('precioDetalle').textContent = precioUnitario.toFixed(2).replace('.', ',') + ' € × ' + n + ' persona' + (n > 1 ? 's' : '');
-        }
+        recalcularTotal();
     }
     actualizarPersonas(1);
+
+    function recalcularTotal() {
+        var totalConsumiciones = 0;
+        document.querySelectorAll('.consumicion-qty').forEach(function(el) {
+            var qty = parseInt(el.value) || 0;
+            totalConsumiciones += qty * parseFloat(el.dataset.precio);
+        });
+        var totalEntradas = esGratis ? 0 : precioUnitario * numPersonasActual;
+        var total = totalEntradas + totalConsumiciones;
+        document.getElementById('precioTotal').textContent = total > 0 ? total.toFixed(2).replace('.', ',') + ' €' : 'Gratis';
+        var detalle = [];
+        if (!esGratis) detalle.push(precioUnitario.toFixed(2).replace('.', ',') + ' € × ' + numPersonasActual + ' persona' + (numPersonasActual > 1 ? 's' : ''));
+        if (totalConsumiciones > 0) detalle.push(totalConsumiciones.toFixed(2).replace('.', ',') + ' € en consumiciones');
+        document.getElementById('precioDetalle').textContent = detalle.join(' + ');
+    }
 
     function toggleYoAsisto() {
         var chk = document.getElementById('yo_asisto');
