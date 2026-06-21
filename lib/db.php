@@ -282,6 +282,20 @@ function runMigrations(): void
             WHERE archivado=0 AND activo=1
             AND fecha_evento IS NOT NULL AND fecha_evento < DATE_SUB(NOW(), INTERVAL 1 DAY)");
 
+        // Sanear permisos de carpetas de imágenes públicas (logo, imágenes de eventos),
+        // por si quedaron creadas con permisos demasiado restrictivos (0750) que impiden
+        // que el servidor web las sirva.
+        $storageDir = __DIR__ . '/../storage';
+        if (is_dir($storageDir)) {
+            @chmod($storageDir, 0755);
+            foreach (glob($storageDir . '/logo.*') ?: [] as $f) @chmod($f, 0644);
+        }
+        $imgDir = $storageDir . '/imagenes';
+        if (is_dir($imgDir)) {
+            @chmod($imgDir, 0755);
+            foreach (glob($imgDir . '/*') ?: [] as $f) if (is_file($f)) @chmod($f, 0644);
+        }
+
         // Generar codigo_corto para entradas antiguas que no lo tengan
         $stSinCodigo = $pdo->query("SELECT id FROM entradas WHERE codigo_corto IS NULL LIMIT 500");
         $idsSinCodigo = $stSinCodigo->fetchAll(PDO::FETCH_COLUMN);

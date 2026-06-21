@@ -27,9 +27,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ext = strtolower(pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION));
         if (in_array($ext, ['png','jpg','jpeg','gif','webp','svg'])) {
             $dir = __DIR__ . '/../../storage/';
-            if (!is_dir($dir)) mkdir($dir, 0750, true);
+            if (!is_dir($dir)) mkdir($dir, 0755, true);
+            chmod($dir, 0755);
             $fname = 'logo.' . $ext;
             if (move_uploaded_file($_FILES['logo']['tmp_name'], $dir . $fname)) {
+                chmod($dir . $fname, 0644);
                 setSetting('logo_path', 'storage/' . $fname);
             }
         }

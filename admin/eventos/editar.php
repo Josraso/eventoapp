@@ -63,9 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Formato de imagen no válido.';
             } else {
                 $dir = __DIR__ . '/../../storage/imagenes/';
-                if (!is_dir($dir)) mkdir($dir, 0750, true);
+                if (!is_dir($dir)) mkdir($dir, 0755, true);
+                chmod($dir, 0755);
                 $fname = 'evento_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
                 if (move_uploaded_file($_FILES['imagen']['tmp_name'], $dir . $fname)) {
+                    chmod($dir . $fname, 0644);
                     $imagen = 'storage/imagenes/' . $fname;
                 }
             }

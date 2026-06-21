@@ -3,6 +3,7 @@ require_once __DIR__ . '/../../lib/db.php';
 require_once __DIR__ . '/../../lib/Auth.php';
 
 Auth::adminCheck('superadmin','admin');
+$base = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
 
 $error = '';
 

@@ -4,7 +4,7 @@ require_once __DIR__ . '/../lib/Auth.php';
 
 $eventos = db()->query("
     SELECT e.*,
-        (SELECT COUNT(*) FROM inscripciones i WHERE i.evento_id=e.id AND i.estado_pago='pagado') as total_inscritos
+        (SELECT COUNT(*) FROM entradas en JOIN inscripciones i ON i.id=en.inscripcion_id WHERE i.evento_id=e.id AND i.estado_pago='pagado') as total_inscritos
     FROM eventos e
     WHERE e.activo=1 AND e.archivado=0
     ORDER BY e.sort_order ASC, e.fecha_evento ASC

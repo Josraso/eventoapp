@@ -22,6 +22,9 @@ $nav = [
     ['url' => $base.'/admin/porteros/index.php',       'icon' => '🚪', 'label' => 'Porteros',       'match' => '/admin/porteros/'],
     ['url' => $base.'/admin/ajustes/index.php',        'icon' => '⚙️', 'label' => 'Ajustes',        'match' => '/admin/ajustes/'],
 ];
+if ($adminRole === 'superadmin') {
+    $nav[] = ['url' => $base.'/admin/administradores/index.php', 'icon' => '🛡️', 'label' => 'Administradores', 'match' => '/admin/administradores/'];
+}
 
 $flash = getFlash();
 ?>
@@ -125,6 +128,7 @@ table.admin tr:hover td{background:#fafafa;}
       <strong><?= h($adminName) ?></strong>
       <?= ucfirst($adminRole) ?>
     </div>
+    <a href="<?= h($base) ?>/admin/perfil.php" class="logout-btn" style="margin-bottom:6px;">👤 Mi perfil</a>
     <a href="<?= h($base) ?>/admin/logout.php" class="logout-btn">Cerrar sesión →</a>
   </div>
 </aside>

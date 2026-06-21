@@ -114,12 +114,13 @@ if ($step === 3 && $_SERVER['REQUEST_METHOD'] === 'POST') {
             setSetting('mail_from_name',  $siteName);
 
             foreach ([
-                __DIR__.'/../storage',
-                __DIR__.'/../storage/entradas',
-                __DIR__.'/../storage/imagenes',
-                __DIR__.'/../logs',
-            ] as $dir) {
-                if (!is_dir($dir)) mkdir($dir, 0750, true);
+                __DIR__.'/../storage'          => 0755,
+                __DIR__.'/../storage/entradas' => 0750,
+                __DIR__.'/../storage/imagenes' => 0755,
+                __DIR__.'/../logs'             => 0750,
+            ] as $dir => $perm) {
+                if (!is_dir($dir)) mkdir($dir, $perm, true);
+                chmod($dir, $perm);
             }
             file_put_contents(__DIR__.'/../storage/.htaccess', "Options -Indexes\n\n<FilesMatch \"\\.(php|phtml|php\\d?)\$\">\n    Require all denied\n</FilesMatch>\n");
             file_put_contents(__DIR__.'/../storage/entradas/.htaccess', "Require all denied\n");

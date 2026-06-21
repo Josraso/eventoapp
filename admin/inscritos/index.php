@@ -91,6 +91,8 @@ $stResumen = db()->prepare("
 ");
 $stResumen->execute($params);
 $resumen = $stResumen->fetch();
+
+$exportUrl = 'exportar.php?' . http_build_query(array_filter(['evento_id'=>$eventoFiltro,'estado'=>$estadoFiltro,'q'=>$q]));
 ?>
 
 <div class="filters">
@@ -112,6 +114,7 @@ $resumen = $stResumen->fetch();
       <a href="<?= h($base) ?>/admin/inscritos/index.php" class="btn btn-sm btn-outline">✕ Limpiar</a>
     <?php endif; ?>
   </form>
+  <a href="<?= h($exportUrl) ?>" class="btn btn-sm btn-success">⬇ Excel</a>
 </div>
 
 <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
