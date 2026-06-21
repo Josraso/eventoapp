@@ -20,6 +20,7 @@ $nav = [
     ['url' => $base.'/admin/eventos/index.php',        'icon' => '🎫', 'label' => 'Eventos',        'match' => '/admin/eventos/'],
     ['url' => $base.'/admin/inscripciones/index.php',  'icon' => '📋', 'label' => 'Pedidos',        'match' => '/admin/inscripciones/'],
     ['url' => $base.'/admin/inscritos/index.php',      'icon' => '🧍', 'label' => 'Inscritos',      'match' => '/admin/inscritos/'],
+    ['url' => $base.'/admin/consumiciones/index.php',  'icon' => '🍹', 'label' => 'Consumiciones',  'match' => '/admin/consumiciones/'],
     ['url' => $base.'/admin/usuarios/index.php',       'icon' => '👤', 'label' => 'Usuarios',       'match' => '/admin/usuarios/'],
     ['url' => $base.'/admin/porteros/index.php',       'icon' => '🚪', 'label' => 'Porteros',       'match' => '/admin/porteros/'],
     ['url' => $base.'/admin/camareros/index.php',      'icon' => '🍹', 'label' => 'Camareros',      'match' => '/admin/camareros/'],
