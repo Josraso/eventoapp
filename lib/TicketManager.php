@@ -306,60 +306,88 @@ class TicketManager
     }
 
     /**
-     * Dibuja la página de una consumición (ticket de barra) dentro de un PDF ya creado.
-     * El nombre del producto se muestra grande al pie del QR para identificarlo de un vistazo.
+     * Dibuja varios tickets de consumición en una rejilla (3 por fila) sobre páginas A4,
+     * con líneas de corte entre ellos, para ahorrar papel frente a una página por ticket.
      */
-    private static function pintarPaginaConsumicion(\TCPDF $pdf, array $consumicion, array $producto, array $evento): void
+    private static function pintarGridConsumiciones(\TCPDF $pdf, array $consumiciones, array $evento): void
     {
+        if (empty($consumiciones)) return;
+
+        $cols = 3;
+        $rows = 4;
+        $porPagina = $cols * $rows;
+        $margenX = 8;
+        $margenY = 8;
+        $anchoUtil = 210 - 2 * $margenX;
+        $altoUtil  = 297 - 2 * $margenY;
+        $cellW = $anchoUtil / $cols;
+        $cellH = $altoUtil / $rows;
+
+        foreach (array_chunk($consumiciones, $porPagina) as $pagina) {
+            $pdf->AddPage('P', 'A4');
+
+            // Líneas de corte verticales
+            $pdf->SetDrawColor(180, 180, 180);
+            $pdf->SetLineStyle(['width' => 0.2, 'dash' => '2,2']);
+            for ($c = 1; $c < $cols; $c++) {
+                $x = $margenX + $c * $cellW;
+                $pdf->Line($x, $margenY, $x, $margenY + $altoUtil);
+            }
+            // Líneas de corte horizontales
+            for ($r = 1; $r < $rows; $r++) {
+                $y = $margenY + $r * $cellH;
+                $pdf->Line($margenX, $y, $margenX + $anchoUtil, $y);
+            }
+            $pdf->SetLineStyle(['width' => 0.2, 'dash' => 0]);
+
+            foreach ($pagina as $i => $consumicion) {
+                $col = $i % $cols;
+                $row = intdiv($i, $cols);
+                $x = $margenX + $col * $cellW;
+                $y = $margenY + $row * $cellH;
+                self::pintarCeldaConsumicion($pdf, $consumicion, $evento, $x, $y, $cellW, $cellH);
+            }
+        }
+    }
+
+    /**
+     * Dibuja un único ticket de consumición dentro de una celda de la rejilla
+     */
+    private static function pintarCeldaConsumicion(\TCPDF $pdf, array $consumicion, array $evento, float $x, float $y, float $w, float $h): void
+    {
+        $pad = 4;
         $qrUrl = baseUrl() . '/qr-reader/validar-consumicion.php?t=' . urlencode($consumicion['qr_token']);
         $qrBase64 = self::generarQRImagenBase64($qrUrl);
 
-        $pdf->AddPage();
+        $pdf->SetXY($x + $pad, $y + $pad);
+        $pdf->SetTextColor(99, 102, 241);
+        $pdf->SetFont('helvetica', 'B', 8);
+        $pdf->MultiCell($w - 2 * $pad, 4, strtoupper($evento['nombre']), 0, 'C');
 
-        // Fondo cabecera
-        $pdf->SetFillColor(99, 102, 241);
-        $pdf->Rect(0, 0, 148, 40, 'F');
-
-        $pdf->SetTextColor(255, 255, 255);
-        $pdf->SetFont('helvetica', 'B', 16);
-        $pdf->SetXY(10, 10);
-        $pdf->Cell(128, 8, $evento['nombre'], 0, 1, 'L');
-
-        $pdf->SetFont('helvetica', '', 10);
-        $pdf->SetXY(10, 20);
-        $pdf->Cell(128, 6, 'TICKET DE CONSUMICIÓN', 0, 1, 'L');
-
-        // QR centrado
+        $qrSize = min($w, $h) * 0.45;
+        $qrX = $x + ($w - $qrSize) / 2;
+        $qrY = $y + $pad + 5;
         if ($qrBase64) {
             $qrTmp = tempnam(sys_get_temp_dir(), 'qr_') . '.png';
             file_put_contents($qrTmp, base64_decode($qrBase64));
-            $pdf->Image($qrTmp, 54, 50, 40, 40, 'PNG');
+            $pdf->Image($qrTmp, $qrX, $qrY, $qrSize, $qrSize, 'PNG');
             @unlink($qrTmp);
         }
 
-        // Nombre del producto, grande, al pie del QR
+        $nombreY = $qrY + $qrSize + 2;
         $pdf->SetTextColor(26, 26, 26);
-        $pdf->SetFont('helvetica', 'B', 22);
-        $pdf->SetXY(10, 92);
-        $pdf->MultiCell(128, 10, strtoupper($producto['nombre']), 0, 'C');
+        $pdf->SetFont('helvetica', 'B', 9);
+        $pdf->SetXY($x + $pad, $nombreY);
+        $pdf->MultiCell($w - 2 * $pad, 4, strtoupper($consumicion['producto_nombre']), 0, 'C');
 
-        $y = $pdf->GetY() + 4;
-        $pdf->SetFont('helvetica', 'B', 11);
-        $pdf->SetXY(10, $y);
-        $pdf->Cell(128, 6, 'CÓDIGO: ' . $consumicion['codigo_corto'], 0, 1, 'C');
+        $pdf->SetFont('helvetica', 'B', 8);
+        $pdf->SetXY($x + $pad, $pdf->GetY() + 1);
+        $pdf->Cell($w - 2 * $pad, 4, $consumicion['codigo_corto'], 0, 1, 'C');
 
-        $pdf->SetFont('helvetica', '', 8);
-        $pdf->SetTextColor(150, 150, 150);
-        $pdf->SetXY(10, $pdf->GetY() + 2);
-        $pdf->Cell(128, 4, 'Token: ' . $consumicion['qr_token'], 0, 1, 'C');
-
-        $pdf->SetDrawColor(200, 200, 200);
-        $pdf->Line(10, $pdf->GetY() + 3, 138, $pdf->GetY() + 3);
-
-        $pdf->SetXY(10, $pdf->GetY() + 7);
-        $pdf->SetFont('helvetica', 'I', 8);
-        $pdf->SetTextColor(120, 120, 120);
-        $pdf->MultiCell(128, 4, 'Ticket válido para una única consumición. No es recargable ni reutilizable.', 0, 'C');
+        $pdf->SetFont('helvetica', 'I', 6);
+        $pdf->SetTextColor(140, 140, 140);
+        $pdf->SetXY($x + $pad, $y + $h - $pad - 4);
+        $pdf->MultiCell($w - 2 * $pad, 3, 'Válido para una única consumición', 0, 'C');
     }
 
     /**
@@ -410,9 +438,7 @@ class TicketManager
         foreach ($entradas as $entrada) {
             self::pintarPaginaEntrada($pdf, $entrada, $evento, $inscripcion);
         }
-        foreach ($consumiciones as $consumicion) {
-            self::pintarPaginaConsumicion($pdf, $consumicion, ['nombre' => $consumicion['producto_nombre']], $evento);
-        }
+        self::pintarGridConsumiciones($pdf, $consumiciones, $evento);
 
         $path = self::guardarPDFPedido($inscripcionId, $pdf->Output('', 'S'));
         return [$path];
@@ -457,9 +483,7 @@ class TicketManager
 
         $siteName = getSetting('site_name', 'Eventos');
         $pdf = self::nuevoPDF($siteName, 'Venta en caja - ' . $evento['nombre']);
-        foreach ($consumiciones as $consumicion) {
-            self::pintarPaginaConsumicion($pdf, $consumicion, ['nombre' => $consumicion['producto_nombre']], $evento);
-        }
+        self::pintarGridConsumiciones($pdf, $consumiciones, $evento);
         return $pdf->Output('', 'S');
     }
 
