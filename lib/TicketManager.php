@@ -437,6 +437,33 @@ class TicketManager
     }
 
     /**
+     * Genera el PDF de un lote de consumiciones vendidas en caja (sin pedido/inscripción).
+     * Se descarga directamente, no se persiste su ruta en BD.
+     */
+    public static function generarPDFConsumicionesCaja(array $consumicionIds): string
+    {
+        if (empty($consumicionIds)) return '';
+        $ph = implode(',', array_fill(0, count($consumicionIds), '?'));
+        $st = db()->prepare("SELECT c.*, p.nombre as producto_nombre, c.evento_id
+            FROM consumiciones c JOIN productos_consumicion p ON p.id=c.producto_id
+            WHERE c.id IN ($ph) ORDER BY c.id ASC");
+        $st->execute($consumicionIds);
+        $consumiciones = $st->fetchAll();
+        if (empty($consumiciones)) return '';
+
+        $ev = db()->prepare('SELECT * FROM eventos WHERE id=?');
+        $ev->execute([$consumiciones[0]['evento_id']]);
+        $evento = $ev->fetch();
+
+        $siteName = getSetting('site_name', 'Eventos');
+        $pdf = self::nuevoPDF($siteName, 'Venta en caja - ' . $evento['nombre']);
+        foreach ($consumiciones as $consumicion) {
+            self::pintarPaginaConsumicion($pdf, $consumicion, ['nombre' => $consumicion['producto_nombre']], $evento);
+        }
+        return $pdf->Output('', 'S');
+    }
+
+    /**
      * Genera número de pedido único
      */
     public static function generarNumeroPedido(): string
