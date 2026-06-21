@@ -203,6 +203,11 @@ $total = (int)$stTotal->fetchColumn();
 
     <div id="resultado-container"></div>
 
+    <!-- Input manual -->
+    <div style="margin-bottom:16px;">
+      <input type="text" id="input-manual" class="search-input" placeholder="Introduce el código de 6 caracteres..." maxlength="6" style="text-transform:uppercase;letter-spacing:.1em;text-align:center;font-weight:700;font-size:18px;padding:14px;" autocomplete="off" autofocus>
+    </div>
+
     <div id="qr-container">
       <video id="qr-video" playsinline autoplay muted></video>
       <div class="scan-overlay">
@@ -213,11 +218,6 @@ $total = (int)$stTotal->fetchColumn();
 
     <div style="text-align:center;font-size:12px;color:#555;margin-bottom:16px;">
       Apunta la cámara al código QR de la entrada
-    </div>
-
-    <!-- Input manual -->
-    <div style="margin-bottom:16px;">
-      <input type="text" id="input-manual" class="search-input" placeholder="O introduce el código de 6 caracteres..." maxlength="6" style="text-transform:uppercase;letter-spacing:.1em;text-align:center;font-weight:700;" autocomplete="off">
     </div>
   </div>
 
@@ -347,6 +347,7 @@ function mostrarResultado(data) {
         html += '<div class="detalle" style="margin-top:8px;color:#f59e0b;">Validada: ' + esc(data.usado_at) + '</div>';
     html += '</div>';
     document.getElementById('resultado-container').innerHTML = html;
+    document.getElementById('resultado-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function ocultarResultado() {
