@@ -169,6 +169,9 @@ class Auth
     {
         if (session_status() !== PHP_SESSION_NONE) return;
         $isPortero = strpos($_SERVER['SCRIPT_NAME'] ?? '', '/qr-reader/') !== false;
+        // Nombre de cookie distinto para portero: así su sesión nunca se mezcla
+        // con la del admin ni con la del cliente, aunque compartan navegador.
+        session_name($isPortero ? 'eventoapp_portero' : 'eventoapp_sess');
         $lifetime  = $isPortero ? 2592000 : 0; // 30 días para portero
         $secure    = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
         session_set_cookie_params([

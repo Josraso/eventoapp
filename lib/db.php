@@ -99,13 +99,15 @@ function redirect(string $url): void
 
 function flash(string $type, string $msg): void
 {
-    if (session_status() === PHP_SESSION_NONE) session_start();
+    if (class_exists('Auth')) Auth::ensureSession();
+    elseif (session_status() === PHP_SESSION_NONE) session_start();
     $_SESSION['flash'] = ['type' => $type, 'msg' => $msg];
 }
 
 function getFlash(): ?array
 {
-    if (session_status() === PHP_SESSION_NONE) session_start();
+    if (class_exists('Auth')) Auth::ensureSession();
+    elseif (session_status() === PHP_SESSION_NONE) session_start();
     if (!empty($_SESSION['flash'])) {
         $f = $_SESSION['flash'];
         unset($_SESSION['flash']);

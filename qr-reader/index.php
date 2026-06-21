@@ -121,6 +121,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .btn-scan-nuevo { width: 100%; background: #1a1a1a; border: 2px dashed #333; border-radius: 12px; padding: 16px; font-size: 14px; color: #888; cursor: pointer; text-align: center; margin-bottom: 16px; }
 .btn-scan-nuevo:hover { border-color: #4ade80; color: #4ade80; }
 .btn-cambiar { background: none; border: 1px solid #333; border-radius: 8px; padding: 6px 12px; font-size: 12px; color: #888; cursor: pointer; }
+.btn-marcar { background: #4ade80; border: none; border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 700; color: #0a0a0a; cursor: pointer; flex-shrink: 0; }
+.btn-desmarcar { background: none; border: 1px solid #555; border-radius: 8px; padding: 8px 14px; font-size: 12px; color: #aaa; cursor: pointer; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -221,7 +223,12 @@ $total = (int)$stTotal->fetchColumn();
 
   <!-- LISTADO -->
   <div class="tab-panel" id="panel-listado">
-    <input type="text" class="search-input" id="search-listado" placeholder="Buscar por nombre..." oninput="filtrarListado(this.value)">
+    <input type="text" class="search-input" id="search-listado" placeholder="Buscar por nombre o pedido..." oninput="filtrarListado()">
+    <div class="tabs" style="margin-bottom:12px;">
+      <button class="tab active" id="filtro-todos" onclick="setFiltro('todos', this)">Todos</button>
+      <button class="tab" id="filtro-pendientes" onclick="setFiltro('pendientes', this)">Pendientes</button>
+      <button class="tab" id="filtro-validados" onclick="setFiltro('validados', this)">Validados</button>
+    </div>
     <div id="listado-container">
       <p style="color:#666;text-align:center;padding:20px;">Cargando...</p>
     </div>
@@ -348,13 +355,22 @@ function showTab(id, btn) {
 
 // ── LISTADO ───────────────────────────────────────────────────────────────────
 var listadoData = [];
+var filtroActual = 'todos';
+
 function cargarListado() {
     fetch('listado.php?evento_id=' + eventoId)
         .then(r => r.json())
         .then(function(data) {
             listadoData = data;
-            renderListado(data);
+            filtrarListado();
         });
+}
+
+function setFiltro(filtro, btn) {
+    filtroActual = filtro;
+    document.querySelectorAll('#panel-listado .tabs .tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filtrarListado();
 }
 
 function renderListado(data) {
@@ -364,17 +380,46 @@ function renderListado(data) {
         html += '<div class="' + (e.usado ? 'dot-ok' : 'dot-no') + '"></div>';
         html += '<div style="flex:1"><div class="nombre">' + esc(e.nombre) + '</div>';
         html += '<div class="meta">' + esc(e.pedido) + (e.usado_at ? ' · ✓ ' + esc(e.usado_at) : '') + '</div></div>';
+        if (e.usado) {
+            html += '<button class="btn-desmarcar" onclick="marcarEntrada(' + e.id + ',\'desmarcar\')">Desmarcar</button>';
+        } else {
+            html += '<button class="btn-marcar" onclick="marcarEntrada(' + e.id + ',\'marcar\')">✓ Marcar entrada</button>';
+        }
         html += '</div>';
     });
     document.getElementById('listado-container').innerHTML = html || '<p style="color:#666;text-align:center;padding:20px;">Sin entradas.</p>';
 }
 
-function filtrarListado(q) {
-    q = q.toLowerCase();
+function filtrarListado() {
+    var q = document.getElementById('search-listado').value.toLowerCase();
     var filtrado = listadoData.filter(function(e) {
-        return e.nombre.toLowerCase().includes(q) || e.pedido.toLowerCase().includes(q);
+        var coincideTexto = e.nombre.toLowerCase().includes(q) || e.pedido.toLowerCase().includes(q);
+        var coincideFiltro = filtroActual === 'todos'
+            || (filtroActual === 'validados' && e.usado)
+            || (filtroActual === 'pendientes' && !e.usado);
+        return coincideTexto && coincideFiltro;
     });
     renderListado(filtrado);
+}
+
+function marcarEntrada(id, accion) {
+    fetch('marcar.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'entrada_id=' + id + '&accion=' + accion
+    })
+    .then(r => r.json())
+    .then(function(data) {
+        if (!data.ok) { alert('No se pudo actualizar la entrada.'); return; }
+        var item = listadoData.find(function(e) { return e.id === id; });
+        if (item) {
+            item.usado = data.usado;
+            item.usado_at = data.usado ? 'ahora' : '';
+        }
+        actualizarStats(data.stats);
+        filtrarListado();
+    })
+    .catch(function() { alert('Error de conexión.'); });
 }
 
 function esc(s) {

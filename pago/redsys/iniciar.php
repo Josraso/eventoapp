@@ -17,7 +17,7 @@ if (!$ins || $ins['estado_pago'] !== 'pendiente') {
 $orderRef = RedsysAPI::generateOrderRef();
 db()->prepare('UPDATE inscripciones SET redsys_order=? WHERE id=?')->execute([$orderRef, $inscripcionId]);
 
-if (session_status() === PHP_SESSION_NONE) session_start();
+Auth::ensureSession();
 $_SESSION['redsys_inscripcion_id'] = $inscripcionId;
 $_SESSION['redsys_order'] = $orderRef;
 

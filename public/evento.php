@@ -167,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
 
             // Guardar en sesión para el proceso de pago
-            if (session_status() === PHP_SESSION_NONE) session_start();
+            Auth::ensureSession();
             $_SESSION['inscripcion_id']     = $inscripcionId;
             $_SESSION['inscripcion_pedido'] = $numeroPedido;
 

@@ -1,8 +1,9 @@
 <?php
 // redsys/ok.php
 require_once __DIR__ . '/../../lib/db.php';
+require_once __DIR__ . '/../../lib/Auth.php';
 $siteName = getSetting('site_name', 'Eventos');
-if (session_status() === PHP_SESSION_NONE) session_start();
+Auth::ensureSession();
 $ord = preg_replace('/[^A-Za-z0-9]/', '', $_GET['Ds_Order'] ?? $_SESSION['redsys_order'] ?? '');
 $insId = (int)($_SESSION['redsys_inscripcion_id'] ?? 0);
 $stIns = db()->prepare('SELECT i.*, e.nombre as evento_nombre FROM inscripciones i JOIN eventos e ON e.id=i.evento_id WHERE i.redsys_order=?');
