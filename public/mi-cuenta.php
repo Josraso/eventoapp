@@ -243,6 +243,9 @@ foreach ($inscripciones as $ins) {
               <?php if (!$ins['es_gratuito']): ?>
                 <div style="font-size:14px;font-weight:700;margin-top:4px;"><?= number_format((float)$ins['precio_total'], 2, ',', '.') ?> €</div>
               <?php endif; ?>
+              <?php if ($ins['estado_pago'] === 'pagado' && (!empty($entradas) || !empty($consumiciones))): ?>
+                <a href="descargar-pedido.php?id=<?= $ins['id'] ?>" target="_blank" class="btn btn-sm btn-outline" style="margin-top:6px;">⬇ PDF del pedido</a>
+              <?php endif; ?>
             </div>
           </div>
 

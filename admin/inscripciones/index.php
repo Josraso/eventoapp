@@ -115,7 +115,8 @@ $offset = ($pagina - 1) * $perPage;
 $paramsPag = array_merge($params, [$perPage, $offset]);
 $stIns = db()->prepare("
     SELECT i.*, e.nombre as evento_nombre, u.name as user_name, u.email as user_email,
-        (SELECT GROUP_CONCAT(en.nombre_asistente ORDER BY en.es_titular DESC SEPARATOR ', ') FROM entradas en WHERE en.inscripcion_id=i.id) as asistentes
+        (SELECT GROUP_CONCAT(en.nombre_asistente ORDER BY en.es_titular DESC SEPARATOR ', ') FROM entradas en WHERE en.inscripcion_id=i.id) as asistentes,
+        (SELECT COALESCE(SUM(c.precio),0) FROM consumiciones c WHERE c.inscripcion_id=i.id) as consumiciones_total
     FROM inscripciones i
     JOIN eventos e ON e.id=i.evento_id
     JOIN users u ON u.id=i.user_id
@@ -135,14 +136,15 @@ $eventos = $esSuperAdmin
         return $st->fetchAll();
     })();
 
-// Totales resumen
+// Totales resumen (separando importe de entradas e importe de consumiciones)
 $stResumen = db()->prepare("
-    SELECT estado_pago, COUNT(*) as cnt, SUM(precio_total) as suma
+    SELECT i.estado_pago, COUNT(*) as cnt, SUM(i.precio_total) as suma,
+        SUM((SELECT COALESCE(SUM(c.precio),0) FROM consumiciones c WHERE c.inscripcion_id=i.id)) as suma_consumiciones
     FROM inscripciones i
     JOIN eventos e ON e.id=i.evento_id
     JOIN users u ON u.id=i.user_id
     WHERE $whereStr
-    GROUP BY estado_pago
+    GROUP BY i.estado_pago
 ");
 $stResumen->execute($params);
 $resumen = [];
@@ -189,13 +191,20 @@ $exportUrl = 'exportar.php?' . http_build_query(array_filter(['evento_id'=>$even
       'cancelado' => ['label'=>'Canceladas','color'=>'#888','bg'=>'#f4f4f6'],
   ];
   foreach ($rs as $est=>$r):
-    $cnt  = (int)($resumen[$est]['cnt'] ?? 0);
-    $suma = (float)($resumen[$est]['suma'] ?? 0);
+    $cnt    = (int)($resumen[$est]['cnt'] ?? 0);
+    $suma   = (float)($resumen[$est]['suma'] ?? 0);
+    $sumaC  = (float)($resumen[$est]['suma_consumiciones'] ?? 0);
+    $sumaE  = $suma - $sumaC;
   ?>
   <div style="background:<?= $r['bg'] ?>;border-radius:10px;padding:12px 16px;min-width:120px;">
     <div style="font-size:20px;font-weight:800;color:<?= $r['color'] ?>;"><?= $cnt ?></div>
     <div style="font-size:11px;color:<?= $r['color'] ?>;font-weight:700;"><?= $r['label'] ?></div>
-    <?php if ($suma > 0): ?><div style="font-size:12px;color:<?= $r['color'] ?>;"><?= number_format($suma,2,',','.') ?> €</div><?php endif; ?>
+    <?php if ($suma > 0): ?>
+      <div style="font-size:12px;color:<?= $r['color'] ?>;font-weight:700;margin-top:2px;"><?= number_format($suma,2,',','.') ?> € total</div>
+      <?php if ($sumaC > 0): ?>
+        <div style="font-size:11px;color:<?= $r['color'] ?>;opacity:.8;">🎫 <?= number_format($sumaE,2,',','.') ?> € · 🍹 <?= number_format($sumaC,2,',','.') ?> €</div>
+      <?php endif; ?>
+    <?php endif; ?>
   </div>
   <?php endforeach; ?>
   <div style="background:#f0f4ff;border-radius:10px;padding:12px 16px;min-width:120px;">
@@ -238,7 +247,12 @@ $exportUrl = 'exportar.php?' . http_build_query(array_filter(['evento_id'=>$even
               <?= h($ins['asistentes'] ?? '') ?>
             </td>
             <td><span class="badge badge-gray"><?= ucfirst($ins['metodo_pago']) ?></span></td>
-            <td style="font-weight:700;"><?= number_format((float)$ins['precio_total'],2,',','.') ?> €</td>
+            <td style="font-weight:700;">
+              <?= number_format((float)$ins['precio_total'],2,',','.') ?> €
+              <?php if ((float)$ins['consumiciones_total'] > 0): ?>
+                <div style="font-size:10px;color:#aaa;font-weight:normal;">🎫 <?= number_format((float)$ins['precio_total']-(float)$ins['consumiciones_total'],2,',','.') ?> € · 🍹 <?= number_format((float)$ins['consumiciones_total'],2,',','.') ?> €</div>
+              <?php endif; ?>
+            </td>
             <td><span class="badge <?= $bc ?>"><?= ucfirst($ins['estado_pago']) ?></span></td>
             <td style="font-size:12px;color:#aaa;"><?= date('d/m/Y H:i', strtotime($ins['created_at'])) ?></td>
             <td>

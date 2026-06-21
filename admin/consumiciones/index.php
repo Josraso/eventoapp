@@ -187,7 +187,14 @@ $ventasCaja = $stCaja->fetchAll();
             <td style="font-weight:700;"><?= number_format((float)$p['importe_consumiciones'], 2, ',', '.') ?> €</td>
             <td><span class="badge <?= $bc ?>"><?= ucfirst($p['estado_pago']) ?></span></td>
             <td style="font-size:12px;color:#aaa;"><?= date('d/m/Y H:i', strtotime($p['created_at'])) ?></td>
-            <td><a href="<?= h($base) ?>/admin/inscripciones/detalle.php?id=<?= $p['id'] ?>" class="btn btn-sm btn-outline">Ver pedido</a></td>
+            <td>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <a href="<?= h($base) ?>/admin/inscripciones/detalle.php?id=<?= $p['id'] ?>" class="btn btn-sm btn-outline">Ver pedido</a>
+                <?php if ($p['estado_pago'] === 'pagado'): ?>
+                  <a href="<?= h($base) ?>/admin/inscripciones/descargar-pdf.php?id=<?= $p['id'] ?>" target="_blank" class="btn btn-sm btn-outline">⬇ PDF</a>
+                <?php endif; ?>
+              </div>
+            </td>
           </tr>
         <?php endforeach; endif; ?>
       </tbody>

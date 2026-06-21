@@ -27,6 +27,10 @@ $stEnt = db()->prepare('SELECT * FROM entradas WHERE inscripcion_id=? ORDER BY e
 $stEnt->execute([$id]);
 $entradas = $stEnt->fetchAll();
 
+$stCons = db()->prepare('SELECT c.*, p.nombre as producto_nombre FROM consumiciones c JOIN productos_consumicion p ON p.id=c.producto_id WHERE c.inscripcion_id=? ORDER BY c.id ASC');
+$stCons->execute([$id]);
+$consumiciones = $stCons->fetchAll();
+
 // Campos del evento
 $stCampos = db()->prepare('SELECT * FROM evento_campos WHERE evento_id=? ORDER BY sort_order');
 $stCampos->execute([$ins['evento_id']]);
@@ -190,7 +194,7 @@ $bc = match($ins['estado_pago']) { 'pagado'=>'badge-green','pendiente'=>'badge-o
           <?php if (!empty($ent['codigo_corto'])): ?>
             <span class="badge badge-blue" style="font-family:monospace;letter-spacing:.05em;">Código: <?= h($ent['codigo_corto']) ?></span>
           <?php endif; ?>
-          <a href="descargar-pdf.php?id=<?= $ent['id'] ?>" class="btn btn-sm btn-outline" target="_blank">⬇ PDF</a>
+          <a href="descargar-pdf.php?id=<?= $ins['id'] ?>" class="btn btn-sm btn-outline" target="_blank">⬇ PDF</a>
           <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('edit-ent-<?= $ent['id'] ?>').style.display='block';this.style.display='none';">✎ Editar</button>
           <?php if (count($entradas) > 1): ?>
           <form method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar esta entrada?')">
@@ -219,7 +223,47 @@ $bc = match($ins['estado_pago']) { 'pagado'=>'badge-green','pendiente'=>'badge-o
         </form>
       </div>
       <?php endforeach; ?>
+      <?php if (empty($entradas)): ?>
+        <p style="font-size:13px;color:#aaa;">Este pedido no tiene entradas.</p>
+      <?php endif; ?>
     </div>
+
+    <!-- CONSUMICIONES -->
+    <?php if (!empty($consumiciones)): ?>
+    <div class="card">
+      <div class="card-title">Consumiciones (<?= count($consumiciones) ?>)</div>
+      <?php foreach ($consumiciones as $cons): ?>
+      <div style="border:1px solid #e4e4e8;border-radius:10px;padding:14px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+          <div>
+            <div style="font-size:14px;font-weight:700;"><?= h($cons['producto_nombre']) ?></div>
+            <div style="font-size:12px;color:#888;margin-top:3px;"><?= number_format((float)$cons['precio'],2,',','.') ?> €</div>
+          </div>
+          <div style="text-align:right;">
+            <?php if ($cons['usado']): ?>
+              <span class="badge badge-green">✓ Canjeada</span>
+              <div style="font-size:11px;color:#aaa;margin-top:3px;"><?= date('d/m/Y H:i',strtotime($cons['usado_at'])) ?></div>
+            <?php else: ?>
+              <span class="badge badge-gray">Sin canjear</span>
+            <?php endif; ?>
+          </div>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+          <code style="font-size:11px;color:#aaa;"><?= h(substr($cons['qr_token'],0,20)) ?>...</code>
+          <?php if (!empty($cons['codigo_corto'])): ?>
+            <span class="badge badge-blue" style="font-family:monospace;letter-spacing:.05em;">Código: <?= h($cons['codigo_corto']) ?></span>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($ins['estado_pago'] === 'pagado' && (!empty($entradas) || !empty($consumiciones))): ?>
+    <div class="card" style="text-align:center;">
+      <a href="descargar-pdf.php?id=<?= $ins['id'] ?>" class="btn btn-outline" target="_blank">⬇ Descargar PDF del pedido</a>
+    </div>
+    <?php endif; ?>
   </div>
 
   <!-- SIDEBAR ACCIONES -->
