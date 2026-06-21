@@ -22,6 +22,12 @@ if ($id) {
     $stC = db()->prepare('SELECT * FROM evento_campos WHERE evento_id=? ORDER BY sort_order ASC');
     $stC->execute([$id]);
     $campos = $stC->fetchAll();
+
+    $stP = db()->prepare('SELECT * FROM productos_consumicion WHERE evento_id=? ORDER BY sort_order ASC');
+    $stP->execute([$id]);
+    $productos = $stP->fetchAll();
+} else {
+    $productos = [];
 }
 
 $listaAdmins = $adminRole === 'superadmin'
@@ -140,6 +146,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 db()->prepare("DELETE FROM evento_campos WHERE evento_id=? AND id NOT IN ($ph)")->execute(array_merge([$id], $idsExistentes));
             } else {
                 db()->prepare('DELETE FROM evento_campos WHERE evento_id=?')->execute([$id]);
+            }
+
+            // Guardar productos de barra: borrar los que no estén en el POST
+            $productosPost = $_POST['productos'] ?? [];
+            $idsProdExistentes = [];
+            foreach ($productosPost as $p) {
+                $pid = (int)($p['id'] ?? 0);
+                $pnombre = trim($p['nombre'] ?? '');
+                if (!$pnombre) continue;
+                $pprecio = (float)str_replace(',', '.', $p['precio'] ?? '0');
+                $pactivo = isset($p['activo']) ? 1 : 0;
+                $psort   = (int)($p['sort'] ?? 0);
+
+                if ($pid) {
+                    db()->prepare('UPDATE productos_consumicion SET nombre=?,precio=?,activo=?,sort_order=? WHERE id=? AND evento_id=?')
+                       ->execute([$pnombre,$pprecio,$pactivo,$psort,$pid,$id]);
+                    $idsProdExistentes[] = $pid;
+                } else {
+                    db()->prepare('INSERT INTO productos_consumicion (evento_id,nombre,precio,activo,sort_order) VALUES(?,?,?,?,?)')
+                       ->execute([$id,$pnombre,$pprecio,$pactivo,$psort]);
+                    $idsProdExistentes[] = (int)db()->lastInsertId();
+                }
+            }
+            if (!empty($idsProdExistentes)) {
+                $ph = implode(',', array_fill(0, count($idsProdExistentes), '?'));
+                db()->prepare("DELETE FROM productos_consumicion WHERE evento_id=? AND id NOT IN ($ph)")->execute(array_merge([$id], $idsProdExistentes));
+            } else {
+                db()->prepare('DELETE FROM productos_consumicion WHERE evento_id=?')->execute([$id]);
             }
 
             Auth::logAction('evento_' . ($id ? 'editar' : 'crear'), 'Evento ID:' . $id . ' nombre:' . $nombre);
@@ -295,6 +329,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <button type="button" onclick="addCampo()" class="btn btn-sm btn-outline">+ Añadir campo</button>
       </div>
+
+      <!-- PRODUCTOS DE BARRA -->
+      <div class="card">
+        <div class="card-title">Productos de barra</div>
+        <p style="font-size:13px;color:#888;margin-bottom:16px;">Define las consumiciones (agua, cerveza, refrescos…) que se pueden vender online o en caja para este evento.</p>
+
+        <div id="productos-container">
+          <?php foreach ($productos as $pi => $producto): ?>
+          <div class="producto-block" style="border:1px solid #e4e4e8;border-radius:10px;padding:16px;margin-bottom:12px;position:relative;">
+            <div style="position:absolute;top:10px;right:10px;">
+              <button type="button" onclick="this.closest('.producto-block').remove()" class="btn btn-sm btn-danger" style="padding:4px 10px;font-size:11px;">✕</button>
+            </div>
+            <input type="hidden" name="productos[<?= $pi ?>][id]" value="<?= (int)$producto['id'] ?>">
+            <div class="field-row">
+              <div class="field">
+                <label>Nombre del producto</label>
+                <input type="text" name="productos[<?= $pi ?>][nombre]" value="<?= h($producto['nombre']) ?>" required>
+              </div>
+              <div class="field">
+                <label>Precio (€)</label>
+                <input type="number" name="productos[<?= $pi ?>][precio]" step="0.01" min="0" value="<?= h(number_format((float)$producto['precio'], 2, '.', '')) ?>">
+              </div>
+              <div class="field">
+                <label style="text-transform:none;font-size:13px;font-weight:normal;display:flex;align-items:center;gap:6px;">
+                  <input type="checkbox" name="productos[<?= $pi ?>][activo]" value="1" <?= $producto['activo']?'checked':'' ?>>
+                  Activo
+                </label>
+              </div>
+              <div class="field">
+                <label>Orden</label>
+                <input type="number" name="productos[<?= $pi ?>][sort]" value="<?= (int)$producto['sort_order'] ?>" style="max-width:60px;">
+              </div>
+            </div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+        <button type="button" onclick="addProducto()" class="btn btn-sm btn-outline">+ Añadir producto</button>
+      </div>
     </div>
 
     <!-- COLUMNA LATERAL -->
@@ -426,6 +498,22 @@ function addCampo() {
         + '<div class="field"><label>Orden</label><input type="number" name="campos[' + c + '][sort]" value="' + c + '" style="max-width:60px;"></div>'
         + '</div></div>';
     document.getElementById('campos-container').insertAdjacentHTML('beforeend', html);
+}
+
+var productoIdx = <?= count($productos) ?>;
+
+function addProducto() {
+    var p = productoIdx++;
+    var html = '<div class="producto-block" style="border:1px solid #e4e4e8;border-radius:10px;padding:16px;margin-bottom:12px;position:relative;">'
+        + '<div style="position:absolute;top:10px;right:10px;"><button type="button" onclick="this.closest(\'.producto-block\').remove()" class="btn btn-sm btn-danger" style="padding:4px 10px;font-size:11px;">✕</button></div>'
+        + '<input type="hidden" name="productos[' + p + '][id]" value="0">'
+        + '<div class="field-row">'
+        + '<div class="field"><label>Nombre del producto</label><input type="text" name="productos[' + p + '][nombre]" required></div>'
+        + '<div class="field"><label>Precio (€)</label><input type="number" name="productos[' + p + '][precio]" step="0.01" min="0" value="0.00"></div>'
+        + '<div class="field"><label style="text-transform:none;font-size:13px;font-weight:normal;display:flex;align-items:center;gap:6px;"><input type="checkbox" name="productos[' + p + '][activo]" value="1" checked> Activo</label></div>'
+        + '<div class="field"><label>Orden</label><input type="number" name="productos[' + p + '][sort]" value="' + p + '" style="max-width:60px;"></div>'
+        + '</div></div>';
+    document.getElementById('productos-container').insertAdjacentHTML('beforeend', html);
 }
 </script>
 
