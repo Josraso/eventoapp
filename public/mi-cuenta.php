@@ -208,6 +208,9 @@ foreach ($inscripciones as $ins) {
             $stEnt = db()->prepare('SELECT * FROM entradas WHERE inscripcion_id=? ORDER BY es_titular DESC, id ASC');
             $stEnt->execute([$ins['id']]);
             $entradas = $stEnt->fetchAll();
+            $stCons = db()->prepare('SELECT c.*, p.nombre as producto_nombre FROM consumiciones c JOIN productos_consumicion p ON p.id=c.producto_id WHERE c.inscripcion_id=? ORDER BY c.id ASC');
+            $stCons->execute([$ins['id']]);
+            $consumiciones = $stCons->fetchAll();
             $badgeClass = match($ins['estado_pago']) {
                 'pagado'      => 'badge-green',
                 'pendiente'   => 'badge-orange',
@@ -267,6 +270,32 @@ foreach ($inscripciones as $ins) {
                   <button type="submit" class="btn btn-sm btn-success">Enviar entrada</button>
                   <button type="button" class="btn btn-sm btn-outline" onclick="toggleEnviar(<?= $ent['id'] ?>)">Cancelar</button>
                 </form>
+              </div>
+            </div>
+            <?php endforeach; ?>
+          <?php endif; ?>
+
+          <?php if ($ins['estado_pago'] === 'pagado' && !empty($consumiciones)): ?>
+            <div style="font-size:12px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;margin-top:14px;">
+              Consumiciones (<?= count($consumiciones) ?>)
+            </div>
+            <?php foreach ($consumiciones as $cons): ?>
+            <div class="entrada-item">
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                <div>
+                  <div class="entrada-nombre"><?= h($cons['producto_nombre']) ?></div>
+                  <div class="entrada-token">QR: <?= h(substr($cons['qr_token'], 0, 16)) ?>...<?= !empty($cons['codigo_corto']) ? ' &middot; Código: <strong>' . h($cons['codigo_corto']) . '</strong>' : '' ?></div>
+                </div>
+                <div style="text-align:right;">
+                  <?php if ($cons['usado']): ?>
+                    <span class="badge badge-green">✓ Canjeada</span>
+                    <?php if ($cons['usado_at']): ?>
+                      <div style="font-size:11px;color:#aaa;margin-top:2px;"><?= date('d/m/Y H:i', strtotime($cons['usado_at'])) ?></div>
+                    <?php endif; ?>
+                  <?php else: ?>
+                    <span class="badge badge-gray">Pendiente</span>
+                  <?php endif; ?>
+                </div>
               </div>
             </div>
             <?php endforeach; ?>
