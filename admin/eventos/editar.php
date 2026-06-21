@@ -91,8 +91,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$error) {
             if ($id) {
+                $admin_id_anterior = (int)$evento['admin_id'];
                 db()->prepare('UPDATE eventos SET nombre=?,slug=?,descripcion=?,imagen=?,fecha_evento=?,lugar=?,lugar_url=?,precio=?,es_gratuito=?,max_inscritos=?,fecha_limite_inscripcion=?,metodos_pago=?,campo_qr_extra=?,activo=?,archivado=?,sort_order=?,admin_id=?,updated_at=NOW() WHERE id=?')
                    ->execute([$nombre,$slug,$descripcion,$imagen,$fecha_evento,$lugar,$lugar_url,$precio,$es_gratuito,$max_inscritos,$fecha_limite,$metodos_str,$campo_qr,$activo,$archivado,$sort_order,$admin_id_evento,$id]);
+
+                // Si se reasigna el propietario del evento, los porteros asignados a este
+                // evento se transfieren con él (su creado_por pasa al nuevo admin), para
+                // que sigan siendo gestionables por quien ahora controla el evento.
+                if ($admin_id_evento && $admin_id_evento !== $admin_id_anterior) {
+                    db()->prepare("UPDATE admin_users SET creado_por=? WHERE role='portero' AND id IN (SELECT admin_id FROM portero_eventos WHERE evento_id=?)")
+                       ->execute([$admin_id_evento, $id]);
+                }
             } else {
                 db()->prepare('INSERT INTO eventos (nombre,slug,descripcion,imagen,fecha_evento,lugar,lugar_url,precio,es_gratuito,max_inscritos,fecha_limite_inscripcion,metodos_pago,campo_qr_extra,activo,sort_order,admin_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
                    ->execute([$nombre,$slug,$descripcion,$imagen,$fecha_evento,$lugar,$lugar_url,$precio,$es_gratuito,$max_inscritos,$fecha_limite,$metodos_str,$campo_qr,$activo,$sort_order,$admin_id_evento]);
