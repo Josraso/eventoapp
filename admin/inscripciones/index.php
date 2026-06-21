@@ -57,17 +57,23 @@ $pageTitle = 'Pedidos';
 require_once __DIR__ . '/../_header.php';
 
 // ── FILTROS ────────────────────────────────────────────────────────────────────
-$eventoFiltro = (int)($_GET['evento_id'] ?? 0);
-$estadoFiltro = $_GET['estado'] ?? '';
-$q            = trim($_GET['q'] ?? '');
-$pagina       = max(1, (int)($_GET['p'] ?? 1));
-$perPage      = 30;
+$eventoFiltro   = (int)($_GET['evento_id'] ?? 0);
+$estadoFiltro   = $_GET['estado'] ?? '';
+$mostrarFallidos = isset($_GET['mostrar_fallidos']);
+$q              = trim($_GET['q'] ?? '');
+$pagina         = max(1, (int)($_GET['p'] ?? 1));
+$perPage        = 30;
 
 $where  = ['1=1'];
 $params = [];
 
 if ($eventoFiltro) { $where[] = 'i.evento_id=?'; $params[] = $eventoFiltro; }
-if ($estadoFiltro) { $where[] = 'i.estado_pago=?'; $params[] = $estadoFiltro; }
+if ($estadoFiltro) {
+    $where[] = 'i.estado_pago=?'; $params[] = $estadoFiltro;
+} elseif (!$mostrarFallidos) {
+    // Por defecto ocultamos los pedidos fallidos (pagos abandonados en pasarela)
+    $where[] = "i.estado_pago != 'fallido'";
+}
 if ($q) {
     $qlike = '%' . $q . '%';
     $where[] = '(i.numero_pedido LIKE ? OR u.name LIKE ? OR u.email LIKE ?
@@ -113,7 +119,7 @@ $stResumen->execute($params);
 $resumen = [];
 foreach ($stResumen->fetchAll() as $r) $resumen[$r['estado_pago']] = $r;
 
-$exportUrl = 'exportar.php?' . http_build_query(array_filter(['evento_id'=>$eventoFiltro,'estado'=>$estadoFiltro,'q'=>$q]));
+$exportUrl = 'exportar.php?' . http_build_query(array_filter(['evento_id'=>$eventoFiltro,'estado'=>$estadoFiltro,'q'=>$q,'mostrar_fallidos'=>$mostrarFallidos?1:0]));
 ?>
 
 <div class="filters">
@@ -128,11 +134,16 @@ $exportUrl = 'exportar.php?' . http_build_query(array_filter(['evento_id'=>$even
       <option value="">Todos los estados</option>
       <option value="pagado" <?= $estadoFiltro==='pagado'?'selected':'' ?>>Pagado</option>
       <option value="pendiente" <?= $estadoFiltro==='pendiente'?'selected':'' ?>>Pendiente</option>
+      <option value="fallido" <?= $estadoFiltro==='fallido'?'selected':'' ?>>Fallido</option>
       <option value="cancelado" <?= $estadoFiltro==='cancelado'?'selected':'' ?>>Cancelado</option>
     </select>
     <input type="text" name="q" value="<?= h($q) ?>" placeholder="Buscar nombre, email, pedido, asistente…" style="min-width:240px;">
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:normal;text-transform:none;">
+      <input type="checkbox" name="mostrar_fallidos" value="1" <?= $mostrarFallidos?'checked':'' ?> onchange="this.form.submit()">
+      Mostrar fallidos
+    </label>
     <button type="submit" class="btn btn-sm">Buscar</button>
-    <?php if ($eventoFiltro || $estadoFiltro || $q): ?>
+    <?php if ($eventoFiltro || $estadoFiltro || $q || $mostrarFallidos): ?>
       <a href="<?= h($base) ?>/admin/inscripciones/index.php" class="btn btn-sm btn-outline">✕ Limpiar</a>
     <?php endif; ?>
   </form>
@@ -145,7 +156,8 @@ $exportUrl = 'exportar.php?' . http_build_query(array_filter(['evento_id'=>$even
   $rs = [
       'pagado'    => ['label'=>'Pagadas','color'=>'#1a7a3a','bg'=>'#e6f9ee'],
       'pendiente' => ['label'=>'Pendientes','color'=>'#8a5a00','bg'=>'#fffbeb'],
-      'cancelado' => ['label'=>'Canceladas','color'=>'#c0392b','bg'=>'#fff1f0'],
+      'fallido'   => ['label'=>'Fallidas','color'=>'#c0392b','bg'=>'#fff1f0'],
+      'cancelado' => ['label'=>'Canceladas','color'=>'#888','bg'=>'#f4f4f6'],
   ];
   foreach ($rs as $est=>$r):
     $cnt  = (int)($resumen[$est]['cnt'] ?? 0);
@@ -184,7 +196,7 @@ $exportUrl = 'exportar.php?' . http_build_query(array_filter(['evento_id'=>$even
           <tr><td colspan="9" style="text-align:center;color:#aaa;padding:40px;">Sin resultados.</td></tr>
         <?php else: ?>
           <?php foreach ($inscripciones as $ins):
-            $bc = match($ins['estado_pago']) { 'pagado'=>'badge-green','pendiente'=>'badge-orange',default=>'badge-red' };
+            $bc = match($ins['estado_pago']) { 'pagado'=>'badge-green','pendiente'=>'badge-orange','fallido'=>'badge-red','cancelado'=>'badge-gray',default=>'badge-red' };
           ?>
           <tr>
             <td><code style="font-size:12px;"><?= h($ins['numero_pedido']) ?></code></td>
@@ -228,7 +240,7 @@ $exportUrl = 'exportar.php?' . http_build_query(array_filter(['evento_id'=>$even
 <?php if ($totalPags > 1): ?>
 <div style="display:flex;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap;">
   <?php for ($p = max(1, $pagina-3); $p <= min($totalPags, $pagina+3); $p++): ?>
-    <a href="?<?= http_build_query(array_merge(array_filter(['evento_id'=>$eventoFiltro,'estado'=>$estadoFiltro,'q'=>$q]), ['p'=>$p])) ?>"
+    <a href="?<?= http_build_query(array_merge(array_filter(['evento_id'=>$eventoFiltro,'estado'=>$estadoFiltro,'q'=>$q,'mostrar_fallidos'=>$mostrarFallidos?1:0]), ['p'=>$p])) ?>"
        class="btn btn-sm <?= $p===$pagina?'':'btn-outline' ?>" style="min-width:34px;"><?= $p ?></a>
   <?php endfor; ?>
 </div>

@@ -32,7 +32,7 @@ $stIns = db()->prepare('SELECT * FROM inscripciones WHERE redsys_order=?');
 $stIns->execute([$ord]);
 $ins = $stIns->fetch();
 if (!$ins) { rlog("No encontrada Order:$ord"); http_response_code(200); exit('OK'); }
-if ($ins['estado_pago'] !== 'pendiente') { rlog("Ya procesada $ord"); http_response_code(200); exit('OK'); }
+if ($ins['estado_pago'] !== 'fallido') { rlog("Ya procesada $ord"); http_response_code(200); exit('OK'); }
 
 if (RedsysAPI::isResponseOk($resp)) {
     db()->prepare("UPDATE inscripciones SET estado_pago='pagado', redsys_auth=?, confirmado_at=NOW() WHERE id=?")
@@ -51,8 +51,8 @@ if (RedsysAPI::isResponseOk($resp)) {
     if ($res['ok']) db()->prepare('UPDATE inscripciones SET email_entradas_enviado=1 WHERE id=?')->execute([$ins['id']]);
     rlog("$ord -> OK, email: " . ($res['ok'] ? 'OK' : 'ERR:' . $res['error']));
 } else {
-    db()->prepare("UPDATE inscripciones SET estado_pago='cancelado' WHERE id=?")->execute([$ins['id']]);
-    rlog("$ord -> CANCELADO resp:$resp");
+    db()->prepare("UPDATE inscripciones SET estado_pago='fallido' WHERE id=?")->execute([$ins['id']]);
+    rlog("$ord -> FALLIDO resp:$resp");
 }
 
 http_response_code(200); echo 'OK';

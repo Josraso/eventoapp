@@ -10,7 +10,7 @@ $stIns = db()->prepare('SELECT i.*, e.nombre as evento_nombre FROM inscripciones
 $stIns->execute([$ord]);
 $ins = $stIns->fetch() ?: ($insId ? db()->prepare('SELECT i.*, e.nombre as evento_nombre FROM inscripciones i JOIN eventos e ON e.id=i.evento_id WHERE i.id=?')->execute([$insId]) && null : null);
 $isOk = $ins && $ins['estado_pago'] === 'pagado';
-$isPend = $ins && $ins['estado_pago'] === 'pendiente';
+$isPend = $ins && $ins['estado_pago'] === 'fallido';
 ?>
 <!DOCTYPE html><html lang="es"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">

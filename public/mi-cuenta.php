@@ -107,7 +107,7 @@ $stIns = db()->prepare("
     SELECT i.*, e.nombre as evento_nombre, e.fecha_evento, e.lugar, e.slug as evento_slug, e.es_gratuito
     FROM inscripciones i
     JOIN eventos e ON e.id = i.evento_id
-    WHERE i.user_id = ?
+    WHERE i.user_id = ? AND i.estado_pago != 'fallido'
     ORDER BY i.created_at DESC
 ");
 $stIns->execute([Auth::userId()]);

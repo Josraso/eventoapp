@@ -11,7 +11,7 @@ $stIns = db()->prepare('SELECT i.*, e.nombre as evento_nombre, e.fecha_evento FR
 $stIns->execute([$inscripcionId, Auth::userId()]);
 $ins = $stIns->fetch();
 
-if (!$ins || $ins['estado_pago'] !== 'pendiente') {
+if (!$ins || $ins['estado_pago'] !== 'fallido') {
     redirect(baseUrl() . '/public/mi-cuenta.php');
 }
 

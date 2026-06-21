@@ -148,10 +148,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $precioTotal = $evento['es_gratuito'] ? 0 : (float)$evento['precio'] * $numPersonas;
             $numeroPedido = TicketManager::generarNumeroPedido();
 
-            // Insertar inscripción
+            // Insertar inscripción. Stripe/Redsys se crean como 'fallido' desde el inicio
+            // (pasan a 'pagado' solo si el usuario completa el pago en la pasarela); así
+            // un pedido abandonado nunca aparece como pendiente real en "Mis pedidos".
+            $estadoInicial = in_array($metodoPago, ['stripe', 'redsys']) ? 'fallido' : 'pendiente';
             db()->prepare('INSERT INTO inscripciones (numero_pedido,evento_id,user_id,num_personas,precio_total,metodo_pago,estado_pago) VALUES(?,?,?,?,?,?,?)')
-               ->execute([$numeroPedido, $evento['id'], Auth::userId(), $numPersonas, $precioTotal, $metodoPago,
-                   ($evento['es_gratuito'] || in_array($metodoPago, ['bizum','transferencia'])) ? 'pendiente' : 'pendiente']);
+               ->execute([$numeroPedido, $evento['id'], Auth::userId(), $numPersonas, $precioTotal, $metodoPago, $estadoInicial]);
             $inscripcionId = (int)db()->lastInsertId();
 
             // Insertar entradas
