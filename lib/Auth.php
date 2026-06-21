@@ -55,6 +55,11 @@ class Auth
     public static function adminLogout(): void
     {
         if (session_status() === PHP_SESSION_NONE) self::startSession();
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+        }
         session_destroy();
     }
 
@@ -154,6 +159,11 @@ class Auth
     }
 
     // ── SESIÓN ────────────────────────────────────────────────────────────────
+
+    public static function ensureSession(): void
+    {
+        self::startSession();
+    }
 
     private static function startSession(): void
     {

@@ -1,0 +1,9 @@
+RewriteEngine On
+
+# Bloquea acceso directo a config.php
+<Files "config.php">
+    Require all denied
+</Files>
+
+# Bloquea acceso directo a directorios sensibles
+RewriteRule ^(storage|logs|lib|vendor)/ - [F,L]

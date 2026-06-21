@@ -56,7 +56,7 @@ class Mailer
                 $mail->Password   = $this->smtp['pass'];
                 $mail->SMTPSecure = $this->smtp['secure'] === 'ssl' ? 'ssl' : 'tls';
             } else {
-                $mail->isSendmail();
+                $mail->isMail(); // usa mail() de PHP, no requiere el binario sendmail
             }
 
             $mail->CharSet = 'UTF-8';
@@ -78,14 +78,15 @@ class Mailer
             $mail->send();
             return ['ok' => true, 'error' => ''];
         } catch (\Exception $e) {
-            // Fallback a sendmail si SMTP falla
-            if ($this->method === 'smtp') {
-                $res = $this->sendNative($to, $toName, $subject, $bodyHtml);
-                if (!$res['ok'])
-                    return ['ok' => false, 'error' => 'SMTP: ' . $e->getMessage() . ' | Sendmail: ' . $res['error']];
-                return $res;
-            }
-            return ['ok' => false, 'error' => 'PHPMailer: ' . $e->getMessage()];
+            // Si falla SMTP o el binario de sendmail, probamos con mail() nativo.
+            // Sin adjuntos no hay problema; con adjuntos se pierde el PDF en el fallback,
+            // pero es preferible avisar al usuario a que el correo no llegue nunca.
+            $res = $this->sendNative($to, $toName, $subject, $bodyHtml);
+            if (!$res['ok'])
+                return ['ok' => false, 'error' => $this->method . ': ' . $e->getMessage() . ' | mail(): ' . $res['error']];
+            if (!empty($attachments))
+                return ['ok' => true, 'error' => '', 'warning' => 'Enviado sin adjunto: ' . $e->getMessage()];
+            return $res;
         }
     }
 

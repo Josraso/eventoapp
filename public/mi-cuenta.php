@@ -211,11 +211,7 @@ $inscripciones = $stIns->fetchAll();
                   <div class="entrada-token">QR: <?= h(substr($ent['qr_token'], 0, 16)) ?>...</div>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                  <?php if ($ent['pdf_path'] && file_exists(__DIR__ . '/../' . $ent['pdf_path'])): ?>
-                    <a href="../<?= h($ent['pdf_path']) ?>" target="_blank" class="btn btn-sm btn-outline">⬇ Descargar</a>
-                  <?php else: ?>
-                    <a href="descargar-entrada.php?id=<?= $ent['id'] ?>" class="btn btn-sm btn-outline">⬇ PDF</a>
-                  <?php endif; ?>
+                  <a href="descargar-entrada.php?id=<?= $ent['id'] ?>" target="_blank" class="btn btn-sm btn-outline">⬇ Descargar</a>
                   <button class="btn btn-sm" onclick="toggleEnviar(<?= $ent['id'] ?>)">📧 Enviar</button>
                 </div>
               </div>

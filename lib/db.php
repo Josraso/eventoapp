@@ -10,6 +10,27 @@ if (!file_exists($_cfg)) {
 }
 require_once $_cfg;
 
+set_exception_handler(function (Throwable $e) {
+    error_log($e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    if (!headers_sent()) http_response_code(500);
+    echo '<div style="font-family:sans-serif;padding:30px;max-width:600px;margin:40px auto;border:1px solid #fcc;border-radius:8px;background:#fff1f0">'
+        . '<h2>Ha ocurrido un error</h2>'
+        . '<p style="margin-top:8px;">Inténtalo de nuevo. Si el problema persiste, contacta con el administrador.</p>'
+        . '</div>';
+});
+
+register_shutdown_function(function () {
+    $err = error_get_last();
+    if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        error_log($err['message'] . ' in ' . $err['file'] . ':' . $err['line']);
+        if (!headers_sent()) http_response_code(500);
+        echo '<div style="font-family:sans-serif;padding:30px;max-width:600px;margin:40px auto;border:1px solid #fcc;border-radius:8px;background:#fff1f0">'
+            . '<h2>Ha ocurrido un error</h2>'
+            . '<p style="margin-top:8px;">Inténtalo de nuevo. Si el problema persiste, contacta con el administrador.</p>'
+            . '</div>';
+    }
+});
+
 function db(): PDO
 {
     static $pdo = null;

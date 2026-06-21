@@ -1,0 +1,11 @@
+/vendor/
+/config.php
+
+/storage/*
+!/storage/.htaccess
+!/storage/entradas/
+/storage/entradas/*
+!/storage/entradas/.gitkeep
+
+/logs/*
+!/logs/.htaccess

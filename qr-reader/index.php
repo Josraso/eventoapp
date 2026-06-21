@@ -2,11 +2,8 @@
 require_once __DIR__ . '/../lib/db.php';
 require_once __DIR__ . '/../lib/Auth.php';
 
-// Sesión de 30 días para portero
-if (session_status() === PHP_SESSION_NONE) {
-    session_set_cookie_params(2592000, '/; SameSite=Lax', '', !empty($_SERVER['HTTPS']), true);
-    session_start();
-}
+// Sesión de 30 días para portero (gestionada por Auth::startSession)
+Auth::ensureSession();
 
 // Login de portero
 $error = '';
