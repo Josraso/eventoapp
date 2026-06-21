@@ -104,12 +104,24 @@ table.admin tr:hover td{background:#fafafa;}
 .filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
 .filters select,.filters input{border:1.5px solid #e0e0e0;border-radius:8px;padding:8px 12px;font-size:13px;outline:none;background:#fff;font-family:inherit;}
 .filters select:focus,.filters input:focus{border-color:#6366f1;}
-@media(max-width:768px){.sidebar{display:none;}.main{margin-left:0;}.content{padding:16px;}.field-row{flex-direction:column;}}
+.menu-toggle{display:none;background:none;border:none;font-size:22px;cursor:pointer;padding:4px 6px;line-height:1;color:#1a1a1a;}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99;}
+@media(max-width:768px){
+  .sidebar{display:flex;transform:translateX(-100%);transition:transform .2s ease;width:240px;}
+  .sidebar.open{transform:translateX(0);}
+  .sidebar-overlay.open{display:block;}
+  .main{margin-left:0;}
+  .content{padding:16px;}
+  .field-row{flex-direction:column;}
+  .menu-toggle{display:inline-flex;}
+  .topbar h1{font-size:16px;}
+}
 </style>
 </head>
 <body>
 
-<aside class="sidebar">
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMenu()"></div>
+<aside class="sidebar" id="sidebar">
   <div class="sidebar-head">
     <a href="<?= h($base) ?>/admin/index.php" class="sidebar-logo">
       <?php if ($logoUrl): ?>
@@ -142,7 +154,10 @@ table.admin tr:hover td{background:#fafafa;}
 
 <div class="main">
   <div class="topbar">
-    <h1><?= h($pageTitle ?? '') ?></h1>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button type="button" class="menu-toggle" onclick="openMenu()">☰</button>
+      <h1><?= h($pageTitle ?? '') ?></h1>
+    </div>
     <div class="actions">
       <a href="<?= h($base) ?>/public/index.php" target="_blank" style="font-size:13px;color:#888;text-decoration:none;">Ver web ↗</a>
     </div>
