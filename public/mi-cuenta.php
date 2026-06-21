@@ -7,6 +7,8 @@ require_once __DIR__ . '/../lib/TicketManager.php';
 Auth::userCheck();
 $user     = Auth::getUser();
 $siteName = getSetting('site_name', 'Eventos');
+$logoPath = getSetting('logo_path');
+$logoUrl  = ($logoPath && file_exists(__DIR__.'/../'.$logoPath)) ? '../'.$logoPath : null;
 $flash    = getFlash();
 $error    = '';
 $success  = '';
@@ -146,7 +148,7 @@ foreach ($inscripciones as $ins) {
 
 <header class="site-header">
   <div class="inner">
-    <a href="index.php" class="site-logo"><?= h($siteName) ?></a>
+    <a href="index.php" class="site-logo"><?php if ($logoUrl): ?><img src="<?= h($logoUrl) ?>"><?php else: ?><?= h($siteName) ?><?php endif; ?></a>
     <nav class="nav-links">
       <a href="index.php">Eventos</a>
       <a href="logout.php">Cerrar sesión</a>

@@ -11,6 +11,8 @@ $eventos = db()->query("
 ")->fetchAll();
 
 $siteName = getSetting('site_name', 'Eventos');
+$logoPath = getSetting('logo_path');
+$logoUrl  = ($logoPath && file_exists(__DIR__.'/../'.$logoPath)) ? '../'.$logoPath : null;
 $isLogged = Auth::isUserLogged();
 $flash    = getFlash();
 ?>
@@ -26,7 +28,7 @@ $flash    = getFlash();
 
 <header class="site-header">
   <div class="inner">
-    <a href="index.php" class="site-logo"><?= h($siteName) ?></a>
+    <a href="index.php" class="site-logo"><?php if ($logoUrl): ?><img src="<?= h($logoUrl) ?>"><?php else: ?><?= h($siteName) ?><?php endif; ?></a>
     <nav class="nav-links">
       <?php if ($isLogged): ?>
         <a href="mi-cuenta.php">Mi cuenta</a>

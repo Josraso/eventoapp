@@ -34,6 +34,8 @@ $campos = $campos->fetchAll();
 $metodosActivos = array_filter(explode(',', $evento['metodos_pago'] ?? ''));
 
 $siteName = getSetting('site_name', 'Eventos');
+$logoPath = getSetting('logo_path');
+$logoUrl  = ($logoPath && file_exists(__DIR__.'/../'.$logoPath)) ? '../'.$logoPath : null;
 $isLogged = Auth::isUserLogged();
 $user     = $isLogged ? Auth::getUser() : null;
 $error    = '';
@@ -254,7 +256,7 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
 
 <header class="site-header">
   <div class="inner">
-    <a href="index.php" class="site-logo"><?= h($siteName) ?></a>
+    <a href="index.php" class="site-logo"><?php if ($logoUrl): ?><img src="<?= h($logoUrl) ?>"><?php else: ?><?= h($siteName) ?><?php endif; ?></a>
     <nav class="nav-links">
       <?php if ($isLogged): ?>
         <span style="font-size:13px;color:#888;">Hola, <?= h($user['name'] ?? '') ?></span>

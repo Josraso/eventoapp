@@ -11,6 +11,8 @@ $ins = $stIns->fetch();
 if (!$ins) { redirect('mi-cuenta.php'); }
 
 $siteName = getSetting('site_name', 'Eventos');
+$logoPath = getSetting('logo_path');
+$logoUrl  = ($logoPath && file_exists(__DIR__.'/../'.$logoPath)) ? '../'.$logoPath : null;
 ?>
 <!DOCTYPE html><html lang="es"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -18,7 +20,7 @@ $siteName = getSetting('site_name', 'Eventos');
 <link rel="stylesheet" href="assets/css/main.css">
 </head><body>
 <header class="site-header"><div class="inner">
-  <a href="index.php" class="site-logo"><?= h($siteName) ?></a>
+  <a href="index.php" class="site-logo"><?php if ($logoUrl): ?><img src="<?= h($logoUrl) ?>"><?php else: ?><?= h($siteName) ?><?php endif; ?></a>
   <nav class="nav-links"><a href="mi-cuenta.php">Mi cuenta</a></nav>
 </div></header>
 <main class="page-wrap"><div class="container-sm">

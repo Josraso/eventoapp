@@ -7,6 +7,8 @@ require_once __DIR__ . '/../lib/Mailer.php';
 if (Auth::isUserLogged()) redirect('mi-cuenta.php');
 
 $siteName = getSetting('site_name', 'Eventos');
+$logoPath = getSetting('logo_path');
+$logoUrl  = ($logoPath && file_exists(__DIR__.'/../'.$logoPath)) ? '../'.$logoPath : null;
 $error = '';
 $ok    = false;
 
@@ -65,7 +67,7 @@ function verificarRecaptcha(string $token): bool
 <link rel="stylesheet" href="assets/css/main.css">
 </head><body>
 <header class="site-header"><div class="inner">
-  <a href="index.php" class="site-logo"><?= h($siteName) ?></a>
+  <a href="index.php" class="site-logo"><?php if ($logoUrl): ?><img src="<?= h($logoUrl) ?>"><?php else: ?><?= h($siteName) ?><?php endif; ?></a>
   <nav class="nav-links"><a href="login.php">Ya tengo cuenta</a></nav>
 </div></header>
 <main class="page-wrap"><div class="container-sm">

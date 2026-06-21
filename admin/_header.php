@@ -7,6 +7,8 @@ require_once __DIR__ . '/../lib/Auth.php';
 Auth::adminCheck('superadmin', 'admin');
 
 $siteName  = getSetting('site_name', 'Eventos');
+$logoPath  = getSetting('logo_path');
+$logoUrl   = ($logoPath && file_exists(__DIR__.'/../'.$logoPath)) ? rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/') . '/' . $logoPath : null;
 $adminRole = Auth::adminRole();
 $adminName = Auth::adminName();
 $base      = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
@@ -109,7 +111,11 @@ table.admin tr:hover td{background:#fafafa;}
 <aside class="sidebar">
   <div class="sidebar-head">
     <a href="<?= h($base) ?>/admin/index.php" class="sidebar-logo">
-      <span class="dot"></span> <?= h($siteName) ?>
+      <?php if ($logoUrl): ?>
+        <img src="<?= h($logoUrl) ?>" style="max-height:28px;max-width:140px;object-fit:contain;">
+      <?php else: ?>
+        <span class="dot"></span> <?= h($siteName) ?>
+      <?php endif; ?>
     </a>
     <div class="sidebar-sub">Panel de administración</div>
   </div>
