@@ -41,13 +41,17 @@ $logoUrl  = ($logoPath && file_exists(__DIR__.'/../'.$logoPath)) ? '../'.$logoPa
     </table>
     <?php if ($ins['metodo_pago'] === 'bizum'): ?>
       <div class="alert alert-info" style="margin-top:16px;">
-        📱 <strong>Bizum al:</strong> <?= h(getSetting('bizum_telefono', 'Ver email')) ?><br>
-        Concepto: <strong><?= h($ins['numero_pedido']) ?></strong> + tu nombre
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div>📱 <strong>Bizum al:</strong> <?= h(getSetting('bizum_telefono', 'Ver email')) ?></div>
+          <div>Concepto: <strong><?= h($ins['numero_pedido']) ?></strong> + tu nombre</div>
+        </div>
       </div>
     <?php elseif ($ins['metodo_pago'] === 'transferencia'): ?>
       <div class="alert alert-info" style="margin-top:16px;">
-        🏦 <strong>Transferencia a:</strong> <?= h(getSetting('transferencia_iban', 'Ver email')) ?><br>
-        Concepto: <strong><?= h($ins['numero_pedido']) ?></strong> + tu nombre
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div>🏦 <strong>Transferencia a:</strong> <?= h(getSetting('transferencia_iban', 'Ver email')) ?></div>
+          <div>Concepto: <strong><?= h($ins['numero_pedido']) ?></strong> + tu nombre</div>
+        </div>
       </div>
     <?php endif; ?>
     <a href="mi-cuenta.php" class="btn btn-full btn-outline" style="margin-top:20px;">Ver mis inscripciones</a>

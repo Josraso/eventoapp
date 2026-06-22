@@ -115,25 +115,97 @@ $stIns = db()->prepare("
 $stIns->execute([Auth::userId()]);
 $inscripciones = $stIns->fetchAll();
 
-// Agrupar por evento (un usuario puede tener varios pedidos del mismo evento)
-$porEvento = [];
+// Construir, para cada pedido, sus entradas/consumiciones y si es mixto
+$pedidosConDatos = [];
 foreach ($inscripciones as $ins) {
-    $porEvento[$ins['evento_id']]['evento_nombre'] ??= $ins['evento_nombre'];
-    $porEvento[$ins['evento_id']]['fecha_evento']  ??= $ins['fecha_evento'];
-    $porEvento[$ins['evento_id']]['lugar']         ??= $ins['lugar'];
-    $porEvento[$ins['evento_id']]['pedidos'][]      = $ins;
+    $stEnt = db()->prepare('SELECT * FROM entradas WHERE inscripcion_id=? ORDER BY es_titular DESC, id ASC');
+    $stEnt->execute([$ins['id']]);
+    $entradas = $stEnt->fetchAll();
+    $entradasActivas = array_filter($entradas, fn($e) => !$e['usado']);
+    $entradasCanjeadas = array_filter($entradas, fn($e) => $e['usado']);
+    $stCons = db()->prepare('SELECT c.*, p.nombre as producto_nombre FROM consumiciones c JOIN productos_consumicion p ON p.id=c.producto_id WHERE c.inscripcion_id=? ORDER BY c.id ASC');
+    $stCons->execute([$ins['id']]);
+    $consumiciones = $stCons->fetchAll();
+    $consActivas = array_filter($consumiciones, fn($c) => !$c['usado']);
+    $consCanjeadas = array_filter($consumiciones, fn($c) => $c['usado']);
+    $esMixto = !empty($entradas) && !empty($consumiciones);
+    $pedidosConDatos[$ins['id']] = compact('ins','entradas','entradasActivas','entradasCanjeadas','consumiciones','consActivas','consCanjeadas','esMixto');
+}
+$pedidosConEntradas = array_filter($pedidosConDatos, fn($pd) => !empty($pd['entradas']));
+$pedidosConConsumiciones = array_filter($pedidosConDatos, fn($pd) => !empty($pd['consumiciones']));
+
+function renderEntradaItem(array $ent, bool $canjeada): void
+{
+    ?>
+    <div class="entrada-item<?= $canjeada ? ' is-canjeada' : '' ?>">
+      <div class="entrada-nombre"><?= h($ent['nombre_asistente']) ?> <?= $ent['es_titular'] ? '<span class="badge badge-blue">titular</span>' : '' ?></div>
+      <div class="entrada-token">QR: <?= h(substr($ent['qr_token'], 0, 12)) ?>...<?= !$canjeada && !empty($ent['codigo_corto']) ? ' &middot; Código: <strong>' . h($ent['codigo_corto']) . '</strong>' : '' ?></div>
+      <?php if ($canjeada): ?>
+        <div style="margin-top:8px;">
+          <span class="badge badge-green">✓ Canjeada</span>
+          <?php if ($ent['usado_at']): ?>
+            <span style="font-size:11px;color:#aaa;margin-left:6px;"><?= date('d/m/Y H:i', strtotime($ent['usado_at'])) ?></span>
+          <?php endif; ?>
+        </div>
+      <?php else: ?>
+        <div class="entrada-actions">
+          <button type="button" class="btn btn-sm btn-success" onclick="mostrarQR('entrada', <?= $ent['id'] ?>, '<?= h(addslashes($ent['nombre_asistente'])) ?>')">📱 QR</button>
+          <a href="descargar-entrada.php?id=<?= $ent['id'] ?>" target="_blank" class="btn btn-sm btn-outline">⬇</a>
+          <button class="btn btn-sm" onclick="toggleEnviar(<?= $ent['id'] ?>)">📧</button>
+        </div>
+        <div class="enviar-form" id="enviar-<?= $ent['id'] ?>">
+          <form method="POST" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+            <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
+            <input type="hidden" name="action" value="enviar_entrada">
+            <input type="hidden" name="entrada_id" value="<?= $ent['id'] ?>">
+            <div class="field" style="flex:1;min-width:160px;margin-bottom:0;">
+              <label>Email del asistente</label>
+              <input type="email" name="email_destino" required placeholder="asistente@email.com">
+            </div>
+            <button type="submit" class="btn btn-sm btn-success">Enviar</button>
+            <button type="button" class="btn btn-sm btn-outline" onclick="toggleEnviar(<?= $ent['id'] ?>)">Cancelar</button>
+          </form>
+        </div>
+      <?php endif; ?>
+    </div>
+    <?php
 }
 
-function renderPedidoBox(array $pd): void
+function renderConsumicionItem(array $cons, bool $canjeada): void
 {
-    $ins               = $pd['ins'];
-    $entradas          = $pd['entradas'];
-    $entradasActivas   = $pd['entradasActivas'];
-    $entradasCanjeadas = $pd['entradasCanjeadas'];
-    $consumiciones     = $pd['consumiciones'];
-    $consActivas       = $pd['consActivas'];
-    $consCanjeadas     = $pd['consCanjeadas'];
-    $esMixto           = $pd['esMixto'];
+    ?>
+    <div class="entrada-item is-consumicion<?= $canjeada ? ' is-canjeada' : '' ?>">
+      <div class="entrada-nombre"><?= h($cons['producto_nombre']) ?></div>
+      <div class="entrada-token">QR: <?= h(substr($cons['qr_token'], 0, 12)) ?>...<?= !$canjeada && !empty($cons['codigo_corto']) ? ' &middot; Código: <strong>' . h($cons['codigo_corto']) . '</strong>' : '' ?></div>
+      <?php if ($canjeada): ?>
+        <div style="margin-top:8px;">
+          <span class="badge badge-green">✓ Canjeada</span>
+          <?php if ($cons['usado_at']): ?>
+            <span style="font-size:11px;color:#aaa;margin-left:6px;"><?= date('d/m/Y H:i', strtotime($cons['usado_at'])) ?></span>
+          <?php endif; ?>
+        </div>
+      <?php else: ?>
+        <div class="entrada-actions">
+          <span class="badge badge-gray">Pendiente</span>
+          <button type="button" class="btn btn-sm btn-success" onclick="mostrarQR('consumicion', <?= $cons['id'] ?>, '<?= h(addslashes($cons['producto_nombre'])) ?>')">📱 QR</button>
+        </div>
+      <?php endif; ?>
+    </div>
+    <?php
+}
+
+// Renderiza el recuadro de un pedido dentro de la tab "entradas" o "consumiciones"
+function renderPedidoBox(array $pd, string $tipo): void
+{
+    $ins      = $pd['ins'];
+    $esMixto  = $pd['esMixto'];
+    $activos    = $tipo === 'entradas' ? $pd['entradasActivas']   : $pd['consActivas'];
+    $canjeados  = $tipo === 'entradas' ? $pd['entradasCanjeadas'] : $pd['consCanjeadas'];
+    $items      = $tipo === 'entradas' ? $pd['entradas']          : $pd['consumiciones'];
+    $otroTipo   = $tipo === 'entradas' ? 'consumiciones' : 'entradas';
+    $otroLabel  = $tipo === 'entradas' ? '🍹 Ver consumiciones de este pedido' : '🎫 Ver entradas de este pedido';
+    $tieneOtro  = $tipo === 'entradas' ? !empty($pd['consumiciones']) : !empty($pd['entradas']);
+
     $badgeClass = match($ins['estado_pago']) {
         'pagado'      => 'badge-green',
         'pendiente'   => 'badge-orange',
@@ -147,9 +219,10 @@ function renderPedidoBox(array $pd): void
         default     => $ins['estado_pago'],
     };
     ?>
-    <div class="pedido-box">
+    <div class="pedido-box" id="pedido-<?= $tipo ?>-<?= $ins['id'] ?>">
       <div class="pedido-head">
         <div>
+          <div style="font-size:12px;color:#aaa;margin-bottom:2px;"><?= h($ins['evento_nombre']) ?></div>
           <div class="pedido-meta"><strong>Pedido <?= h($ins['numero_pedido']) ?></strong> &middot; <strong><?= date('d/m/Y', strtotime($ins['created_at'])) ?></strong></div>
           <span class="badge <?= $badgeClass ?>" style="margin-top:6px;display:inline-block;"><?= $estadoLabel ?></span>
           <?php if ($esMixto): ?><span class="badge badge-purple" style="margin-top:6px;display:inline-block;margin-left:4px;">🔀 Mixto</span><?php endif; ?>
@@ -158,11 +231,17 @@ function renderPedidoBox(array $pd): void
           <?php if (!$ins['es_gratuito']): ?>
             <div style="font-size:18px;font-weight:800;"><?= number_format((float)$ins['precio_total'], 2, ',', '.') ?> €</div>
           <?php endif; ?>
-          <?php if ($ins['estado_pago'] === 'pagado' && (!empty($entradas) || !empty($consumiciones))): ?>
+          <?php if ($ins['estado_pago'] === 'pagado' && !empty($items)): ?>
             <a href="descargar-pedido.php?id=<?= $ins['id'] ?>" target="_blank" class="btn btn-sm btn-outline" style="margin-top:6px;">⬇ PDF del pedido</a>
           <?php endif; ?>
         </div>
       </div>
+
+      <?php if ($tieneOtro): ?>
+        <div style="margin-bottom:14px;">
+          <a href="#" onclick="goToPedido('<?= $otroTipo ?>', <?= $ins['id'] ?>); return false;" class="badge badge-purple" style="text-decoration:none;">🔀 Mixto &middot; <?= $otroLabel ?> →</a>
+        </div>
+      <?php endif; ?>
 
       <?php if ($ins['estado_pago'] === 'pendiente' && in_array($ins['metodo_pago'], ['bizum','transferencia'])): ?>
         <div class="alert alert-warning" style="font-size:13px;margin-bottom:14px;">
@@ -170,112 +249,27 @@ function renderPedidoBox(array $pd): void
         </div>
       <?php endif; ?>
 
-      <?php if ($ins['estado_pago'] === 'pagado' && (!empty($entradas) || !empty($consumiciones))): ?>
-      <?php if ($esMixto): ?>
-        <div class="tabs" style="margin-bottom:14px;">
-          <button type="button" class="subtab active" onclick="showSubTab(<?= $ins['id'] ?>,'entradas',this)">🎫 Entradas (<?= count($entradas) ?>) <span class="badge badge-purple" style="margin-left:4px;">Mixto</span></button>
-          <button type="button" class="subtab" onclick="showSubTab(<?= $ins['id'] ?>,'consumiciones',this)">🍹 Consumiciones (<?= count($consumiciones) ?>) <span class="badge badge-purple" style="margin-left:4px;">Mixto</span></button>
-        </div>
-      <?php endif; ?>
-
-      <?php if (!empty($entradas)): ?>
-      <div class="sub-tab-panel active" id="subtab-<?= $ins['id'] ?>-entradas">
-        <?php if (empty($entradasActivas)): ?>
-          <p style="font-size:13px;color:#aaa;margin-bottom:10px;">Todas las entradas de este pedido ya han sido canjeadas.</p>
+      <?php if ($ins['estado_pago'] === 'pagado' && !empty($items)): ?>
+        <?php if (empty($activos)): ?>
+          <p style="font-size:13px;color:#aaa;margin-bottom:10px;">Todas las <?= $tipo === 'entradas' ? 'entradas' : 'consumiciones' ?> de este pedido ya han sido canjeadas.</p>
         <?php else: ?>
-        <div class="pedido-tipo-titulo">🎫 Entradas</div>
         <div class="tickets-grid">
-        <?php foreach ($entradasActivas as $ent): ?>
-        <div class="entrada-item">
-          <div class="entrada-nombre"><?= h($ent['nombre_asistente']) ?> <?= $ent['es_titular'] ? '<span class="badge badge-blue">titular</span>' : '' ?></div>
-          <div class="entrada-token">QR: <?= h(substr($ent['qr_token'], 0, 12)) ?>...<?= !empty($ent['codigo_corto']) ? ' &middot; Código: <strong>' . h($ent['codigo_corto']) . '</strong>' : '' ?></div>
-          <div class="entrada-actions">
-            <button type="button" class="btn btn-sm btn-success" onclick="mostrarQR('entrada', <?= $ent['id'] ?>, '<?= h(addslashes($ent['nombre_asistente'])) ?>')">📱 QR</button>
-            <a href="descargar-entrada.php?id=<?= $ent['id'] ?>" target="_blank" class="btn btn-sm btn-outline">⬇</a>
-            <button class="btn btn-sm" onclick="toggleEnviar(<?= $ent['id'] ?>)">📧</button>
-          </div>
-          <!-- Formulario envío -->
-          <div class="enviar-form" id="enviar-<?= $ent['id'] ?>">
-            <form method="POST" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
-              <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
-              <input type="hidden" name="action" value="enviar_entrada">
-              <input type="hidden" name="entrada_id" value="<?= $ent['id'] ?>">
-              <div class="field" style="flex:1;min-width:160px;margin-bottom:0;">
-                <label>Email del asistente</label>
-                <input type="email" name="email_destino" required placeholder="asistente@email.com">
-              </div>
-              <button type="submit" class="btn btn-sm btn-success">Enviar</button>
-              <button type="button" class="btn btn-sm btn-outline" onclick="toggleEnviar(<?= $ent['id'] ?>)">Cancelar</button>
-            </form>
-          </div>
-        </div>
+        <?php foreach ($activos as $item): ?>
+          <?php $tipo === 'entradas' ? renderEntradaItem($item, false) : renderConsumicionItem($item, false); ?>
         <?php endforeach; ?>
         </div>
         <?php endif; ?>
 
-        <?php if (!empty($entradasCanjeadas)): ?>
-        <div class="canjeadas-toggle" onclick="toggleCanjeadas('entCanj-<?= $ins['id'] ?>')">▾ Ver entradas canjeadas (<?= count($entradasCanjeadas) ?>)</div>
-        <div id="entCanj-<?= $ins['id'] ?>" style="display:none;margin-top:10px;">
+        <?php if (!empty($canjeados)): ?>
+        <div class="canjeadas-toggle" onclick="toggleCanjeadas('canj-<?= $tipo ?>-<?= $ins['id'] ?>')">▾ Ver <?= $tipo === 'entradas' ? 'entradas' : 'consumiciones' ?> canjeadas (<?= count($canjeados) ?>)</div>
+        <div id="canj-<?= $tipo ?>-<?= $ins['id'] ?>" style="display:none;margin-top:10px;">
           <div class="tickets-grid">
-          <?php foreach ($entradasCanjeadas as $ent): ?>
-          <div class="entrada-item is-canjeada">
-            <div class="entrada-nombre"><?= h($ent['nombre_asistente']) ?> <?= $ent['es_titular'] ? '<span class="badge badge-blue">titular</span>' : '' ?></div>
-            <div class="entrada-token">QR: <?= h(substr($ent['qr_token'], 0, 12)) ?>...</div>
-            <div style="margin-top:8px;">
-              <span class="badge badge-green">✓ Canjeada</span>
-              <?php if ($ent['usado_at']): ?>
-                <span style="font-size:11px;color:#aaa;margin-left:6px;"><?= date('d/m/Y H:i', strtotime($ent['usado_at'])) ?></span>
-              <?php endif; ?>
-            </div>
-          </div>
+          <?php foreach ($canjeados as $item): ?>
+            <?php $tipo === 'entradas' ? renderEntradaItem($item, true) : renderConsumicionItem($item, true); ?>
           <?php endforeach; ?>
           </div>
         </div>
         <?php endif; ?>
-      </div>
-      <?php endif; ?>
-
-      <?php if (!empty($consumiciones)): ?>
-      <div class="sub-tab-panel<?= empty($entradas) ? ' active' : '' ?>" id="subtab-<?= $ins['id'] ?>-consumiciones" <?= !empty($entradas) ? 'style="display:none;"' : '' ?>>
-        <?php if (empty($consActivas)): ?>
-          <p style="font-size:13px;color:#aaa;margin-bottom:10px;">Todas las consumiciones de este pedido ya han sido canjeadas.</p>
-        <?php else: ?>
-        <div class="pedido-tipo-titulo">🍹 Consumiciones</div>
-        <div class="tickets-grid">
-        <?php foreach ($consActivas as $cons): ?>
-        <div class="entrada-item is-consumicion">
-          <div class="entrada-nombre"><?= h($cons['producto_nombre']) ?></div>
-          <div class="entrada-token">QR: <?= h(substr($cons['qr_token'], 0, 12)) ?>...<?= !empty($cons['codigo_corto']) ? ' &middot; Código: <strong>' . h($cons['codigo_corto']) . '</strong>' : '' ?></div>
-          <div class="entrada-actions">
-            <span class="badge badge-gray">Pendiente</span>
-            <button type="button" class="btn btn-sm btn-success" onclick="mostrarQR('consumicion', <?= $cons['id'] ?>, '<?= h(addslashes($cons['producto_nombre'])) ?>')">📱 QR</button>
-          </div>
-        </div>
-        <?php endforeach; ?>
-        </div>
-        <?php endif; ?>
-
-        <?php if (!empty($consCanjeadas)): ?>
-        <div class="canjeadas-toggle" onclick="toggleCanjeadas('consCanj-<?= $ins['id'] ?>')">▾ Ver consumiciones canjeadas (<?= count($consCanjeadas) ?>)</div>
-        <div id="consCanj-<?= $ins['id'] ?>" style="display:none;margin-top:10px;">
-          <div class="tickets-grid">
-          <?php foreach ($consCanjeadas as $cons): ?>
-          <div class="entrada-item is-consumicion is-canjeada">
-            <div class="entrada-nombre"><?= h($cons['producto_nombre']) ?></div>
-            <div class="entrada-token">QR: <?= h(substr($cons['qr_token'], 0, 12)) ?>...</div>
-            <div style="margin-top:8px;">
-              <span class="badge badge-green">✓ Canjeada</span>
-              <?php if ($cons['usado_at']): ?>
-                <span style="font-size:11px;color:#aaa;margin-left:6px;"><?= date('d/m/Y H:i', strtotime($cons['usado_at'])) ?></span>
-              <?php endif; ?>
-            </div>
-          </div>
-          <?php endforeach; ?>
-          </div>
-        </div>
-        <?php endif; ?>
-      </div>
-      <?php endif; ?>
       <?php endif; ?>
     </div>
     <?php
@@ -294,10 +288,6 @@ function renderPedidoBox(array $pd): void
 .tab.active { color: #1a1a1a; border-bottom-color: #1a1a1a; }
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
-.subtab { padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; color: #888; transition: color .15s; background: none; border-top: none; border-left: none; border-right: none; font-family: inherit; }
-.subtab.active { color: #1a1a1a; border-bottom-color: #1a1a1a; }
-.sub-tab-panel { display: none; }
-.sub-tab-panel.active { display: block; }
 .tickets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 10px; }
 .entrada-item { position: relative; border: 1px solid #e4e4e8; border-left: 4px solid #6366f1; border-radius: 10px; padding: 12px 14px 12px 16px; background: #fafaff; }
 .entrada-item.is-consumicion { border-left-color: #c87f00; background: #fffaf2; }
@@ -346,7 +336,7 @@ function renderPedidoBox(array $pd): void
     <?php if ($error): ?><div class="alert alert-error"><?= h($error) ?></div><?php endif; ?>
     <?php if ($success): ?><div class="alert alert-success"><?= h($success) ?></div><?php endif; ?>
 
-    <div class="tabs">
+    <div class="tabs" id="mainTabs">
       <button class="tab active" onclick="showTab('inscripciones',this)">Mis inscripciones</button>
       <button class="tab" onclick="showTab('cuenta',this)">Datos de cuenta</button>
     </div>
@@ -361,72 +351,55 @@ function renderPedidoBox(array $pd): void
           <a href="index.php" class="btn">Ver eventos disponibles</a>
         </div>
       <?php else: ?>
-        <?php foreach ($porEvento as $eventoId => $grupo): ?>
-        <div class="card" style="margin-bottom:20px;padding:0;overflow:hidden;">
-          <div style="background:#fafafa;border-bottom:1px solid #f0f0f0;padding:16px 24px;">
-            <div style="font-size:17px;font-weight:800;"><?= h($grupo['evento_nombre']) ?></div>
-            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:4px;">
-              <?php if ($grupo['fecha_evento']): ?>
-                <span style="font-size:13px;color:#888;">📅 <?= date('d/m/Y H:i', strtotime($grupo['fecha_evento'])) ?></span>
-              <?php endif; ?>
-              <?php if ($grupo['lugar']): ?>
-                <span style="font-size:13px;color:#888;">📍 <?= h($grupo['lugar']) ?></span>
-              <?php endif; ?>
-            </div>
-          </div>
-
-          <div style="padding:20px 24px;">
-          <?php
-            $pedidosConDatos = [];
-            foreach ($grupo['pedidos'] as $ins) {
-                $stEnt = db()->prepare('SELECT * FROM entradas WHERE inscripcion_id=? ORDER BY es_titular DESC, id ASC');
-                $stEnt->execute([$ins['id']]);
-                $entradas = $stEnt->fetchAll();
-                $entradasActivas = array_filter($entradas, fn($e) => !$e['usado']);
-                $entradasCanjeadas = array_filter($entradas, fn($e) => $e['usado']);
-                $stCons = db()->prepare('SELECT c.*, p.nombre as producto_nombre FROM consumiciones c JOIN productos_consumicion p ON p.id=c.producto_id WHERE c.inscripcion_id=? ORDER BY c.id ASC');
-                $stCons->execute([$ins['id']]);
-                $consumiciones = $stCons->fetchAll();
-                $consActivas = array_filter($consumiciones, fn($c) => !$c['usado']);
-                $consCanjeadas = array_filter($consumiciones, fn($c) => $c['usado']);
-                $esMixto = !empty($entradas) && !empty($consumiciones);
-                $tieneTickets = !empty($entradas) || !empty($consumiciones);
-                $todoCanjeado = $ins['estado_pago'] === 'pagado' && $tieneTickets && empty($entradasActivas) && empty($consActivas);
-                $pedidosConDatos[] = compact('ins','entradas','entradasActivas','entradasCanjeadas','consumiciones','consActivas','consCanjeadas','esMixto','todoCanjeado');
-            }
-            $pedidosActivos   = array_values(array_filter($pedidosConDatos, fn($p) => !$p['todoCanjeado']));
-            $pedidosCanjeados = array_values(array_filter($pedidosConDatos, fn($p) => $p['todoCanjeado']));
-          ?>
-
-          <?php if (count($pedidosActivos) > 1): ?>
-          <div class="tabs">
-            <?php foreach ($pedidosActivos as $idx => $pd): $insT = $pd['ins']; ?>
-            <button type="button" class="tab <?= $idx===0 ? 'active' : '' ?>" onclick="showPedidoTab(<?= (int)$eventoId ?>, <?= $insT['id'] ?>, this)">
-              Pedido <?= h($insT['numero_pedido']) ?><?= $pd['esMixto'] ? ' <span class="badge badge-purple" style="margin-left:4px;">Mixto</span>' : '' ?>
-            </button>
-            <?php endforeach; ?>
-          </div>
-          <?php endif; ?>
-
-          <?php foreach ($pedidosActivos as $idx => $pd): $insT = $pd['ins']; ?>
-          <div class="pedido-tab-panel evento-<?= (int)$eventoId ?><?= $idx===0 ? ' active' : '' ?>" id="pedido-tab-<?= $insT['id'] ?>" <?= $idx!==0 ? 'style="display:none;"' : '' ?>>
-            <?php renderPedidoBox($pd); ?>
-          </div>
-          <?php endforeach; ?>
-
-          <?php if (empty($pedidosActivos) && !empty($pedidosCanjeados)): ?>
-            <p style="font-size:13px;color:#aaa;">Todos los pedidos de este evento ya han sido canjeados.</p>
-          <?php endif; ?>
-
-          <?php if (!empty($pedidosCanjeados)): ?>
-            <div class="canjeadas-toggle" onclick="toggleCanjeadas('pedCanj-<?= (int)$eventoId ?>')">▾ Ver pedidos canjeados (<?= count($pedidosCanjeados) ?>)</div>
-            <div id="pedCanj-<?= (int)$eventoId ?>" style="display:none;margin-top:14px;display:flex;flex-direction:column;gap:16px;">
-              <?php foreach ($pedidosCanjeados as $pd) renderPedidoBox($pd); ?>
-            </div>
-          <?php endif; ?>
-          </div>
+        <div class="tabs" id="tipoTabs">
+          <button type="button" class="tab active" onclick="showTipoTab('entradas',this)">🎫 Entradas (<?= count($pedidosConEntradas) ?>)</button>
+          <button type="button" class="tab" onclick="showTipoTab('consumiciones',this)">🍹 Consumiciones (<?= count($pedidosConConsumiciones) ?>)</button>
         </div>
-        <?php endforeach; ?>
+
+        <?php
+          $entActivos    = array_filter($pedidosConEntradas, fn($pd) => $pd['ins']['estado_pago']!=='pagado' || !empty($pd['entradasActivas']));
+          $entCanjeados  = array_filter($pedidosConEntradas, fn($pd) => $pd['ins']['estado_pago']==='pagado' && empty($pd['entradasActivas']));
+          $consActivosP  = array_filter($pedidosConConsumiciones, fn($pd) => $pd['ins']['estado_pago']!=='pagado' || !empty($pd['consActivas']));
+          $consCanjeadosP= array_filter($pedidosConConsumiciones, fn($pd) => $pd['ins']['estado_pago']==='pagado' && empty($pd['consActivas']));
+        ?>
+
+        <div class="tipo-tab-panel active" id="tipo-tab-entradas">
+          <?php if (empty($pedidosConEntradas)): ?>
+            <p style="font-size:13px;color:#aaa;">No tienes pedidos con entradas.</p>
+          <?php else: ?>
+            <div style="display:flex;flex-direction:column;gap:16px;">
+            <?php foreach ($entActivos as $pd): renderPedidoBox($pd, 'entradas'); endforeach; ?>
+            </div>
+            <?php if (empty($entActivos)): ?>
+              <p style="font-size:13px;color:#aaa;">Todos los pedidos de entradas ya han sido canjeados.</p>
+            <?php endif; ?>
+            <?php if (!empty($entCanjeados)): ?>
+              <div class="canjeadas-toggle" onclick="toggleCanjeadas('pedCanj-entradas')">▾ Ver pedidos canjeados (<?= count($entCanjeados) ?>)</div>
+              <div id="pedCanj-entradas" style="display:none;margin-top:14px;flex-direction:column;gap:16px;">
+                <?php foreach ($entCanjeados as $pd): renderPedidoBox($pd, 'entradas'); endforeach; ?>
+              </div>
+            <?php endif; ?>
+          <?php endif; ?>
+        </div>
+
+        <div class="tipo-tab-panel" id="tipo-tab-consumiciones" style="display:none;">
+          <?php if (empty($pedidosConConsumiciones)): ?>
+            <p style="font-size:13px;color:#aaa;">No tienes pedidos con consumiciones.</p>
+          <?php else: ?>
+            <div style="display:flex;flex-direction:column;gap:16px;">
+            <?php foreach ($consActivosP as $pd): renderPedidoBox($pd, 'consumiciones'); endforeach; ?>
+            </div>
+            <?php if (empty($consActivosP)): ?>
+              <p style="font-size:13px;color:#aaa;">Todos los pedidos de consumiciones ya han sido canjeados.</p>
+            <?php endif; ?>
+            <?php if (!empty($consCanjeadosP)): ?>
+              <div class="canjeadas-toggle" onclick="toggleCanjeadas('pedCanj-consumiciones')">▾ Ver pedidos canjeados (<?= count($consCanjeadosP) ?>)</div>
+              <div id="pedCanj-consumiciones" style="display:none;margin-top:14px;flex-direction:column;gap:16px;">
+                <?php foreach ($consCanjeadosP as $pd): renderPedidoBox($pd, 'consumiciones'); endforeach; ?>
+              </div>
+            <?php endif; ?>
+          <?php endif; ?>
+        </div>
       <?php endif; ?>
     </div>
 
@@ -469,17 +442,21 @@ function renderPedidoBox(array $pd): void
 <script>
 function showTab(id, btn) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#mainTabs .tab').forEach(b => b.classList.remove('active'));
     document.getElementById('tab-' + id).classList.add('active');
     btn.classList.add('active');
 }
-function showSubTab(pedidoId, tipo, btn) {
-    var wrap = btn.closest('.tabs');
-    wrap.querySelectorAll('.subtab').forEach(b => b.classList.remove('active'));
+function showTipoTab(tipo, btn) {
+    document.querySelectorAll('#tipoTabs .tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    var pedidoBox = btn.closest('.pedido-box');
-    pedidoBox.querySelectorAll('.sub-tab-panel').forEach(p => p.classList.remove('active'));
-    pedidoBox.querySelector('#subtab-' + pedidoId + '-' + tipo).classList.add('active');
+    document.querySelectorAll('.tipo-tab-panel').forEach(p => p.style.display = 'none');
+    document.getElementById('tipo-tab-' + tipo).style.display = 'block';
+}
+function goToPedido(tipo, pedidoId) {
+    var btn = document.querySelector('#tipoTabs .tab:nth-child(' + (tipo === 'entradas' ? 1 : 2) + ')');
+    showTipoTab(tipo, btn);
+    var target = document.getElementById('pedido-' + tipo + '-' + pedidoId);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 function toggleEnviar(id) {
     var el = document.getElementById('enviar-' + id);
@@ -496,18 +473,6 @@ function cerrarQR() {
 function toggleCanjeadas(id) {
     var el = document.getElementById(id);
     el.style.display = el.style.display === 'none' ? 'block' : 'none';
-}
-function showPedidoTab(eventoId, pedidoId, btn) {
-    var wrap = btn.closest('.tabs');
-    wrap.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('.pedido-tab-panel.evento-' + eventoId).forEach(p => {
-        p.style.display = 'none';
-        p.classList.remove('active');
-    });
-    var panel = document.getElementById('pedido-tab-' + pedidoId);
-    panel.style.display = 'block';
-    panel.classList.add('active');
 }
 </script>
 </body>
