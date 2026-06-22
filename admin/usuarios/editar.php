@@ -5,11 +5,19 @@ require_once __DIR__ . '/../../lib/Auth.php';
 Auth::adminCheck('superadmin', 'admin');
 $base = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
 
+function usuarioEsPropio(int $uid): bool
+{
+    if (Auth::adminRole() === 'superadmin') return true;
+    $st = db()->prepare('SELECT COUNT(*) FROM inscripciones i JOIN eventos e ON e.id=i.evento_id WHERE i.user_id=? AND e.admin_id=?');
+    $st->execute([$uid, Auth::adminId()]);
+    return (int)$st->fetchColumn() > 0;
+}
+
 $id = (int)($_GET['id'] ?? 0);
 $stU = db()->prepare('SELECT * FROM users WHERE id=?');
 $stU->execute([$id]);
 $user = $stU->fetch();
-if (!$user) { flash('error','Usuario no encontrado.'); header('Location: ' . $base . '/admin/usuarios/index.php'); exit; }
+if (!$user || !usuarioEsPropio($id)) { flash('error','Usuario no encontrado.'); header('Location: ' . $base . '/admin/usuarios/index.php'); exit; }
 
 $errores = [];
 

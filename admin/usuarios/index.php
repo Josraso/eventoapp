@@ -4,10 +4,26 @@ require_once __DIR__ . '/../../lib/Auth.php';
 
 Auth::adminCheck('superadmin', 'admin');
 $base = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
+$esSuperAdmin = Auth::adminRole() === 'superadmin';
+
+// Un usuario solo es visible/gestionable por un admin normal si tiene al menos
+// un pedido en un evento de ese admin (un admin no debe ver clientes que solo
+// compraron en eventos de otro organizador).
+function usuarioEsPropio(int $uid): bool
+{
+    if (Auth::adminRole() === 'superadmin') return true;
+    $st = db()->prepare('SELECT COUNT(*) FROM inscripciones i JOIN eventos e ON e.id=i.evento_id WHERE i.user_id=? AND e.admin_id=?');
+    $st->execute([$uid, Auth::adminId()]);
+    return (int)$st->fetchColumn() > 0;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Auth::checkCsrf();
     $uid = (int)($_POST['user_id'] ?? 0);
+    if (!usuarioEsPropio($uid)) {
+        flash('error','No tienes permiso sobre este usuario.');
+        header('Location: ' . $base . '/admin/usuarios/index.php'); exit;
+    }
     switch ($_POST['action'] ?? '') {
         case 'toggle_activo':
             db()->prepare('UPDATE users SET active = NOT active WHERE id=?')->execute([$uid]);
@@ -35,17 +51,27 @@ $q      = trim($_GET['q'] ?? '');
 $pagina = max(1,(int)($_GET['p'] ?? 1));
 $perPage = 30;
 
-$where  = $q ? 'WHERE name LIKE ? OR email LIKE ?' : '';
-$params = $q ? ['%'.$q.'%','%'.$q.'%'] : [];
+$cond   = [];
+$params = [];
+if ($q) { $cond[] = '(u.name LIKE ? OR u.email LIKE ?)'; $params[] = '%'.$q.'%'; $params[] = '%'.$q.'%'; }
+if (!$esSuperAdmin) {
+    $cond[] = 'EXISTS (SELECT 1 FROM inscripciones i2 JOIN eventos e2 ON e2.id=i2.evento_id WHERE i2.user_id=u.id AND e2.admin_id=?)';
+    $params[] = Auth::adminId();
+}
+$where = $cond ? 'WHERE ' . implode(' AND ', $cond) : '';
 
-$stTotal = db()->prepare("SELECT COUNT(*) FROM users $where");
+$stTotal = db()->prepare("SELECT COUNT(*) FROM users u $where");
 $stTotal->execute($params);
 $total = (int)$stTotal->fetchColumn();
 $totalPags = max(1,ceil($total/$perPage));
 $offset = ($pagina-1)*$perPage;
 
+// Para un admin normal, las inscripciones contadas son solo las de sus propios
+// eventos: no debe ver el número de pedidos que un cliente hizo en otros eventos.
+$condInscr = "i.estado_pago='pagado'" . (!$esSuperAdmin ? ' AND i.evento_id IN (SELECT id FROM eventos WHERE admin_id=' . (int)Auth::adminId() . ')' : '');
+
 $st = db()->prepare("SELECT u.*,
-    (SELECT COUNT(*) FROM inscripciones i WHERE i.user_id=u.id AND i.estado_pago='pagado') as num_inscripciones
+    (SELECT COUNT(*) FROM inscripciones i WHERE i.user_id=u.id AND $condInscr) as num_inscripciones
     FROM users u $where ORDER BY u.created_at DESC LIMIT ? OFFSET ?");
 $st->execute(array_merge($params,[$perPage,$offset]));
 $users = $st->fetchAll();
