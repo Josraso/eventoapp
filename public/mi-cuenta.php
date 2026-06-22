@@ -141,13 +141,20 @@ foreach ($inscripciones as $ins) {
 .subtab.active { color: #1a1a1a; border-bottom-color: #1a1a1a; }
 .sub-tab-panel { display: none; }
 .sub-tab-panel.active { display: block; }
-.entrada-item { border: 1px solid #e4e4e8; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
-.entrada-nombre { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-.entrada-token { font-family: monospace; font-size: 11px; color: #aaa; }
+.tickets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 10px; }
+.entrada-item { position: relative; border: 1px solid #e4e4e8; border-left: 4px solid #6366f1; border-radius: 10px; padding: 12px 14px 12px 16px; background: #fafaff; }
+.entrada-item.is-consumicion { border-left-color: #c87f00; background: #fffaf2; }
+.entrada-item.is-canjeada { border-left-color: #c8c8c8; background: #fafafa; opacity: .7; }
+.entrada-nombre { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.entrada-token { font-family: monospace; font-size: 10.5px; color: #aaa; word-break: break-all; }
+.entrada-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 .enviar-form { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0f0f0; }
 .enviar-form.open { display: block; }
-.pedido-box { border: 1px solid #e4e4e8; border-radius: 10px; padding: 16px 18px; }
-.canjeadas-toggle { font-size: 12px; color: #888; cursor: pointer; margin-top: 8px; user-select: none; }
+.pedido-box { border: 1px solid #e4e4e8; border-radius: 12px; padding: 18px 20px; background: #fff; }
+.pedido-head { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid #f0f0f0; }
+.pedido-meta { font-size: 12px; color: #aaa; }
+.pedido-tipo-titulo { font-size: 12px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; }
+.canjeadas-toggle { font-size: 12px; color: #888; cursor: pointer; margin-top: 12px; user-select: none; display: inline-block; }
 .canjeadas-toggle:hover { color: #1a1a1a; }
 </style>
 </head>
@@ -236,12 +243,14 @@ foreach ($inscripciones as $ins) {
             };
           ?>
           <div class="pedido-box">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-            <div style="font-size:12px;color:#aaa;">Pedido: <?= h($ins['numero_pedido']) ?> &middot; <?= date('d/m/Y', strtotime($ins['created_at'])) ?></div>
+          <div class="pedido-head">
+            <div>
+              <div class="pedido-meta">Pedido <code><?= h($ins['numero_pedido']) ?></code> &middot; <?= date('d/m/Y', strtotime($ins['created_at'])) ?></div>
+              <span class="badge <?= $badgeClass ?>" style="margin-top:6px;display:inline-block;"><?= $estadoLabel ?></span>
+            </div>
             <div style="text-align:right;">
-              <span class="badge <?= $badgeClass ?>"><?= $estadoLabel ?></span>
               <?php if (!$ins['es_gratuito']): ?>
-                <div style="font-size:14px;font-weight:700;margin-top:4px;"><?= number_format((float)$ins['precio_total'], 2, ',', '.') ?> €</div>
+                <div style="font-size:18px;font-weight:800;"><?= number_format((float)$ins['precio_total'], 2, ',', '.') ?> €</div>
               <?php endif; ?>
               <?php if ($ins['estado_pago'] === 'pagado' && (!empty($entradas) || !empty($consumiciones))): ?>
                 <a href="descargar-pedido.php?id=<?= $ins['id'] ?>" target="_blank" class="btn btn-sm btn-outline" style="margin-top:6px;">⬇ PDF del pedido</a>
@@ -267,19 +276,17 @@ foreach ($inscripciones as $ins) {
           <div class="sub-tab-panel active" id="subtab-<?= $ins['id'] ?>-entradas">
             <?php if (empty($entradasActivas)): ?>
               <p style="font-size:13px;color:#aaa;margin-bottom:10px;">Todas las entradas de este pedido ya han sido canjeadas.</p>
-            <?php endif; ?>
+            <?php else: ?>
+            <div class="pedido-tipo-titulo">🎫 Entradas</div>
+            <div class="tickets-grid">
             <?php foreach ($entradasActivas as $ent): ?>
             <div class="entrada-item">
-              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                <div>
-                  <div class="entrada-nombre"><?= h($ent['nombre_asistente']) ?> <?= $ent['es_titular'] ? '<span class="badge badge-blue">titular</span>' : '' ?></div>
-                  <div class="entrada-token">QR: <?= h(substr($ent['qr_token'], 0, 16)) ?>...<?= !empty($ent['codigo_corto']) ? ' &middot; Código: <strong>' . h($ent['codigo_corto']) . '</strong>' : '' ?></div>
-                </div>
-                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                  <button type="button" class="btn btn-sm btn-success" onclick="mostrarQR('entrada', <?= $ent['id'] ?>, '<?= h(addslashes($ent['nombre_asistente'])) ?>')">📱 Mostrar QR</button>
-                  <a href="descargar-entrada.php?id=<?= $ent['id'] ?>" target="_blank" class="btn btn-sm btn-outline">⬇ Descargar</a>
-                  <button class="btn btn-sm" onclick="toggleEnviar(<?= $ent['id'] ?>)">📧 Enviar</button>
-                </div>
+              <div class="entrada-nombre"><?= h($ent['nombre_asistente']) ?> <?= $ent['es_titular'] ? '<span class="badge badge-blue">titular</span>' : '' ?></div>
+              <div class="entrada-token">QR: <?= h(substr($ent['qr_token'], 0, 12)) ?>...<?= !empty($ent['codigo_corto']) ? ' &middot; Código: <strong>' . h($ent['codigo_corto']) . '</strong>' : '' ?></div>
+              <div class="entrada-actions">
+                <button type="button" class="btn btn-sm btn-success" onclick="mostrarQR('entrada', <?= $ent['id'] ?>, '<?= h(addslashes($ent['nombre_asistente'])) ?>')">📱 QR</button>
+                <a href="descargar-entrada.php?id=<?= $ent['id'] ?>" target="_blank" class="btn btn-sm btn-outline">⬇</a>
+                <button class="btn btn-sm" onclick="toggleEnviar(<?= $ent['id'] ?>)">📧</button>
               </div>
               <!-- Formulario envío -->
               <div class="enviar-form" id="enviar-<?= $ent['id'] ?>">
@@ -287,36 +294,36 @@ foreach ($inscripciones as $ins) {
                   <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
                   <input type="hidden" name="action" value="enviar_entrada">
                   <input type="hidden" name="entrada_id" value="<?= $ent['id'] ?>">
-                  <div class="field" style="flex:1;min-width:200px;margin-bottom:0;">
+                  <div class="field" style="flex:1;min-width:160px;margin-bottom:0;">
                     <label>Email del asistente</label>
                     <input type="email" name="email_destino" required placeholder="asistente@email.com">
                   </div>
-                  <button type="submit" class="btn btn-sm btn-success">Enviar entrada</button>
+                  <button type="submit" class="btn btn-sm btn-success">Enviar</button>
                   <button type="button" class="btn btn-sm btn-outline" onclick="toggleEnviar(<?= $ent['id'] ?>)">Cancelar</button>
                 </form>
               </div>
             </div>
             <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
 
             <?php if (!empty($entradasCanjeadas)): ?>
             <div class="canjeadas-toggle" onclick="toggleCanjeadas('entCanj-<?= $ins['id'] ?>')">▾ Ver entradas canjeadas (<?= count($entradasCanjeadas) ?>)</div>
-            <div id="entCanj-<?= $ins['id'] ?>" style="display:none;margin-top:8px;">
+            <div id="entCanj-<?= $ins['id'] ?>" style="display:none;margin-top:10px;">
+              <div class="tickets-grid">
               <?php foreach ($entradasCanjeadas as $ent): ?>
-              <div class="entrada-item" style="opacity:.6;">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                  <div>
-                    <div class="entrada-nombre"><?= h($ent['nombre_asistente']) ?> <?= $ent['es_titular'] ? '<span class="badge badge-blue">titular</span>' : '' ?></div>
-                    <div class="entrada-token">QR: <?= h(substr($ent['qr_token'], 0, 16)) ?>...</div>
-                  </div>
-                  <div style="text-align:right;">
-                    <span class="badge badge-green">✓ Canjeada</span>
-                    <?php if ($ent['usado_at']): ?>
-                      <div style="font-size:11px;color:#aaa;margin-top:2px;"><?= date('d/m/Y H:i', strtotime($ent['usado_at'])) ?></div>
-                    <?php endif; ?>
-                  </div>
+              <div class="entrada-item is-canjeada">
+                <div class="entrada-nombre"><?= h($ent['nombre_asistente']) ?> <?= $ent['es_titular'] ? '<span class="badge badge-blue">titular</span>' : '' ?></div>
+                <div class="entrada-token">QR: <?= h(substr($ent['qr_token'], 0, 12)) ?>...</div>
+                <div style="margin-top:8px;">
+                  <span class="badge badge-green">✓ Canjeada</span>
+                  <?php if ($ent['usado_at']): ?>
+                    <span style="font-size:11px;color:#aaa;margin-left:6px;"><?= date('d/m/Y H:i', strtotime($ent['usado_at'])) ?></span>
+                  <?php endif; ?>
                 </div>
               </div>
               <?php endforeach; ?>
+              </div>
             </div>
             <?php endif; ?>
           </div>
@@ -326,43 +333,39 @@ foreach ($inscripciones as $ins) {
           <div class="sub-tab-panel<?= empty($entradas) ? ' active' : '' ?>" id="subtab-<?= $ins['id'] ?>-consumiciones" <?= !empty($entradas) ? 'style="display:none;"' : '' ?>>
             <?php if (empty($consActivas)): ?>
               <p style="font-size:13px;color:#aaa;margin-bottom:10px;">Todas las consumiciones de este pedido ya han sido canjeadas.</p>
-            <?php endif; ?>
+            <?php else: ?>
+            <div class="pedido-tipo-titulo">🍹 Consumiciones</div>
+            <div class="tickets-grid">
             <?php foreach ($consActivas as $cons): ?>
-            <div class="entrada-item">
-              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                <div>
-                  <div class="entrada-nombre"><?= h($cons['producto_nombre']) ?></div>
-                  <div class="entrada-token">QR: <?= h(substr($cons['qr_token'], 0, 16)) ?>...<?= !empty($cons['codigo_corto']) ? ' &middot; Código: <strong>' . h($cons['codigo_corto']) . '</strong>' : '' ?></div>
-                </div>
-                <div style="text-align:right;">
-                  <span class="badge badge-gray">Pendiente</span>
-                  <div style="margin-top:6px;">
-                    <button type="button" class="btn btn-sm btn-success" onclick="mostrarQR('consumicion', <?= $cons['id'] ?>, '<?= h(addslashes($cons['producto_nombre'])) ?>')">📱 Mostrar QR</button>
-                  </div>
-                </div>
+            <div class="entrada-item is-consumicion">
+              <div class="entrada-nombre"><?= h($cons['producto_nombre']) ?></div>
+              <div class="entrada-token">QR: <?= h(substr($cons['qr_token'], 0, 12)) ?>...<?= !empty($cons['codigo_corto']) ? ' &middot; Código: <strong>' . h($cons['codigo_corto']) . '</strong>' : '' ?></div>
+              <div class="entrada-actions">
+                <span class="badge badge-gray">Pendiente</span>
+                <button type="button" class="btn btn-sm btn-success" onclick="mostrarQR('consumicion', <?= $cons['id'] ?>, '<?= h(addslashes($cons['producto_nombre'])) ?>')">📱 QR</button>
               </div>
             </div>
             <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
 
             <?php if (!empty($consCanjeadas)): ?>
             <div class="canjeadas-toggle" onclick="toggleCanjeadas('consCanj-<?= $ins['id'] ?>')">▾ Ver consumiciones canjeadas (<?= count($consCanjeadas) ?>)</div>
-            <div id="consCanj-<?= $ins['id'] ?>" style="display:none;margin-top:8px;">
+            <div id="consCanj-<?= $ins['id'] ?>" style="display:none;margin-top:10px;">
+              <div class="tickets-grid">
               <?php foreach ($consCanjeadas as $cons): ?>
-              <div class="entrada-item" style="opacity:.6;">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                  <div>
-                    <div class="entrada-nombre"><?= h($cons['producto_nombre']) ?></div>
-                    <div class="entrada-token">QR: <?= h(substr($cons['qr_token'], 0, 16)) ?>...</div>
-                  </div>
-                  <div style="text-align:right;">
-                    <span class="badge badge-green">✓ Canjeada</span>
-                    <?php if ($cons['usado_at']): ?>
-                      <div style="font-size:11px;color:#aaa;margin-top:2px;"><?= date('d/m/Y H:i', strtotime($cons['usado_at'])) ?></div>
-                    <?php endif; ?>
-                  </div>
+              <div class="entrada-item is-consumicion is-canjeada">
+                <div class="entrada-nombre"><?= h($cons['producto_nombre']) ?></div>
+                <div class="entrada-token">QR: <?= h(substr($cons['qr_token'], 0, 12)) ?>...</div>
+                <div style="margin-top:8px;">
+                  <span class="badge badge-green">✓ Canjeada</span>
+                  <?php if ($cons['usado_at']): ?>
+                    <span style="font-size:11px;color:#aaa;margin-left:6px;"><?= date('d/m/Y H:i', strtotime($cons['usado_at'])) ?></span>
+                  <?php endif; ?>
                 </div>
               </div>
               <?php endforeach; ?>
+              </div>
             </div>
             <?php endif; ?>
           </div>
