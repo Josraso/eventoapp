@@ -1,6 +1,8 @@
 # EventoApp
 
-Plataforma de gestión de eventos con inscripciones, pagos múltiples y entradas con QR.
+Plataforma de gestión de eventos con inscripciones, pagos múltiples, entradas con QR y venta de consumiciones de barra.
+
+Ver [CHANGELOG.md](CHANGELOG.md) para el histórico de versiones.
 
 ## Requisitos
 
@@ -36,10 +38,11 @@ eventoapp/
 │   ├── eventos/        ← CRUD eventos
 │   ├── inscripciones/  ← Listado, detalle, confirmar pagos, exportar
 │   ├── usuarios/       ← Gestión usuarios registrados
-│   ├── porteros/       ← Gestión porteros y asignación a eventos
+│   ├── porteros/       ← Gestión porteros y camareros, asignación a eventos
+│   ├── consumiciones/  ← Productos de barra por evento, listado de pedidos
 │   └── ajustes/        ← SMTP, Stripe, Redsys, Bizum, reCAPTCHA
 ├── pago/               ← Procesadores de pago (Stripe, Redsys)
-├── qr-reader/          ← Lector QR para porteros
+├── qr-reader/          ← Lector QR para porteros y venta de barra para camareros
 ├── storage/            ← PDFs generados, imágenes (protegido)
 ├── logs/               ← Logs de Redsys y QR (protegido)
 ├── install/            ← Instalador (eliminar tras instalar)
@@ -53,13 +56,23 @@ eventoapp/
 - **Bizum** — Manual, el admin confirma desde el panel
 - **Transferencia** — Manual, el admin confirma desde el panel
 
+Cada evento puede activar métodos de pago distintos para entradas y para consumiciones de barra.
+
+## Consumiciones de barra
+
+- El admin define productos de barra (nombre, precio) por evento.
+- El cliente puede añadir consumiciones al comprar su entrada, o comprarlas solas sin entrada desde `public/barra.php`.
+- Los camareros venden consumiciones en caja y las canjean con el lector QR (`/qr-reader/`), de forma independiente al lector de porteros.
+- Cada pedido genera un único PDF combinado con entradas y/o consumiciones, descargable desde `mi-cuenta.php` y desde el panel admin.
+
 ## Roles
 
 | Rol | Acceso |
 |-----|--------|
 | `superadmin` | Todo, incluyendo ajustes y eliminar |
-| `admin` | Eventos, inscripciones, usuarios, porteros |
-| `portero` | Solo lector QR (`/qr-reader/`) |
+| `admin` | Eventos, inscripciones, usuarios, porteros, camareros |
+| `portero` | Solo lector QR de entradas (`/qr-reader/`) |
+| `camarero` | Solo venta y canje de consumiciones de barra (`/qr-reader/`) |
 
 ## Seguridad post-instalación
 
