@@ -340,7 +340,6 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
               <strong><?= number_format((float)$p['precio'], 2, ',', '.') ?> €</strong>
             </div>
           <?php endforeach; ?>
-          <a href="barra.php?slug=<?= urlencode($slug) ?>" class="btn btn-full btn-outline" style="margin-top:14px;">🍹 Comprar solo consumiciones (sin entrada)</a>
         </div>
         <?php endif; ?>
       </div>
@@ -372,6 +371,10 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
                class="btn btn-full">
               <?= (!empty($productosBarra) && $evento['es_gratuito']) ? '🎫 Inscribirme / comprar consumiciones' : '🎫 Inscribirme en este evento' ?>
             </a>
+          <?php endif; ?>
+
+          <?php if (!empty($productosBarra)): ?>
+            <a href="barra.php?slug=<?= urlencode($slug) ?>" class="btn btn-full btn-outline" style="margin-top:10px;">🍹 Comprar solo consumiciones (sin entrada)</a>
           <?php endif; ?>
         </div>
       </div>

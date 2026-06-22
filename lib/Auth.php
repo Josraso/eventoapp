@@ -172,8 +172,10 @@ class Auth
         $isQrReader = strpos($script, '/qr-reader/') !== false;
         $isLogout   = strpos($script, '/qr-reader/logout-portero.php') !== false;
         $camareroScripts = ['barra.php', 'listado-consumicion.php', 'marcar-consumicion.php', 'validar-consumicion.php', 'venta-caja.php'];
-        $isCamarero = in_array(basename($script), $camareroScripts, true)
-            || ($isLogout && strpos($_SERVER['HTTP_REFERER'] ?? '', 'barra.php') !== false);
+        // Solo cuentan los scripts de camarero dentro de /qr-reader/: public/barra.php
+        // es la página pública de compra de consumiciones y usa la sesión normal.
+        $isCamarero = ($isQrReader && in_array(basename($script), $camareroScripts, true))
+            || ($isLogout && strpos($_SERVER['HTTP_REFERER'] ?? '', '/qr-reader/barra.php') !== false);
         // Nombre de cookie distinto para portero y camarero: así sus sesiones nunca
         // se mezclan entre sí ni con la del admin/cliente, aunque compartan navegador.
         $cookieName = $isCamarero ? 'eventoapp_camarero' : ($isQrReader ? 'eventoapp_portero' : 'eventoapp_sess');
