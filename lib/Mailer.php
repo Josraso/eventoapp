@@ -259,6 +259,58 @@ Concepto: <strong>' . h($pedido) . '</strong> y tu nombre completo.
         return self::tplBase($titulo, $c);
     }
 
+    public static function tplNuevoPedidoAdmin(array $inscripcion, array $evento, array $user): string
+    {
+        $pedido = $inscripcion['numero_pedido'];
+        $total  = number_format((float)$inscripcion['precio_total'], 2, ',', '.') . ' €';
+        $base   = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
+        $link   = $base . '/admin/inscripciones/detalle.php?id=' . (int)$inscripcion['id'];
+
+        $c = '<p>Se ha recibido un nuevo pedido en <strong>' . h($evento['nombre']) . '</strong>:</p>
+<table>
+  <tr><td>Número de pedido</td><td><strong>' . h($pedido) . '</strong></td></tr>
+  <tr><td>Cliente</td><td>' . h($user['name']) . ' (' . h($user['email']) . ')</td></tr>
+  <tr><td>Método de pago</td><td>' . h($inscripcion['metodo_pago']) . '</td></tr>
+  <tr><td>Total</td><td><strong>' . $total . '</strong></td></tr>
+</table>
+<p style="font-size:13px;color:#666;">Este aviso se envía al recibir el pedido, independientemente de si el pago ya está confirmado.</p>
+<p style="text-align:center;margin:24px 0;">
+  <a href="' . h($link) . '" style="background:#1a1a1a;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;">Ver pedido</a>
+</p>';
+
+        return self::tplBase('Nuevo pedido recibido', $c);
+    }
+
+    // ── NOTIFICACIONES ADMIN ─────────────────────────────────────────────────
+
+    // Avisa al admin propietario del evento y a todos los superadmin de que se
+    // ha recibido un pedido nuevo (entradas y/o consumiciones), sin esperar a
+    // que el pago esté confirmado.
+    public static function notificarNuevoPedidoAdmin(array $inscripcion, array $evento, array $user): void
+    {
+        $destinatarios = [];
+        if (!empty($evento['admin_id'])) {
+            $st = db()->prepare("SELECT email, name, username FROM admin_users WHERE id=? AND active=1");
+            $st->execute([$evento['admin_id']]);
+            if ($a = $st->fetch()) {
+                $destinatarios[$a['email']] = $a['name'] ?: $a['username'];
+            }
+        }
+        $st2 = db()->query("SELECT email, name, username FROM admin_users WHERE role='superadmin' AND active=1");
+        foreach ($st2->fetchAll() as $a) {
+            if (!empty($a['email'])) $destinatarios[$a['email']] = $a['name'] ?: $a['username'];
+        }
+
+        if (empty($destinatarios)) return;
+
+        $body = self::tplNuevoPedidoAdmin($inscripcion, $evento, $user);
+        $m = new self();
+        foreach ($destinatarios as $email => $name) {
+            if (!$email) continue;
+            $m->send($email, $name, 'Nuevo pedido recibido — ' . $evento['nombre'], $body);
+        }
+    }
+
     public static function tplEntradaIndividual(array $entrada, array $evento, array $inscripcion): string
     {
         $c = '<p>Te enviamos tu entrada para el evento:</p>

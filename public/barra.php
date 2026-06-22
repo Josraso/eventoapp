@@ -69,6 +69,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'compr
             TicketManager::crearConsumiciones($pid, $qty, $inscripcionId, 'online');
         }
 
+        // Avisar al admin/superadmin del pedido recibido, independientemente
+        // del método de pago o de si ya está confirmado.
+        $insNueva = db()->prepare('SELECT * FROM inscripciones WHERE id=?');
+        $insNueva->execute([$inscripcionId]);
+        Mailer::notificarNuevoPedidoAdmin($insNueva->fetch(), $evento, $user);
+
         Auth::ensureSession();
         $_SESSION['inscripcion_id']     = $inscripcionId;
         $_SESSION['inscripcion_pedido'] = $numeroPedido;

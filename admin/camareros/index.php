@@ -8,11 +8,19 @@ $esSuperAdmin = Auth::adminRole() === 'superadmin';
 
 $error = '';
 
+// Un camarero es "propio" de un admin si lo creó él, o si está asignado a al
+// menos un evento que ese admin posee (visibilidad compartida entre admins
+// cuando el mismo camarero trabaja eventos de varios organizadores).
 function camareroEsPropio(int $cid): bool
 {
     if (Auth::adminRole() === 'superadmin') return true;
-    $st = db()->prepare("SELECT COUNT(*) FROM admin_users WHERE id=? AND role='camarero' AND creado_por=?");
-    $st->execute([$cid, Auth::adminId()]);
+    $st = db()->prepare("SELECT COUNT(*) FROM admin_users c
+        WHERE c.id=? AND c.role='camarero'
+        AND (c.creado_por=? OR EXISTS(
+            SELECT 1 FROM portero_eventos pe JOIN eventos e ON e.id=pe.evento_id
+            WHERE pe.admin_id=c.id AND e.admin_id=?
+        ))");
+    $st->execute([$cid, Auth::adminId(), Auth::adminId()]);
     return (int)$st->fetchColumn() > 0;
 }
 
@@ -85,7 +93,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $eidsRaw = array_map('intval', $_POST['eventos'] ?? []);
         $eidsOk  = array_column(eventosAsignablesCamarero(), 'id');
         $eids    = array_intersect($eidsRaw, $eidsOk);
-        db()->prepare('DELETE FROM portero_eventos WHERE admin_id=?')->execute([$cid]);
+        // Solo tocamos las asignaciones de MIS eventos: si el camarero también
+        // está asignado a eventos de otro admin, esas filas no se borran.
+        if ($eidsOk) {
+            $in = implode(',', array_fill(0, count($eidsOk), '?'));
+            db()->prepare("DELETE FROM portero_eventos WHERE admin_id=? AND evento_id IN ($in)")
+               ->execute(array_merge([$cid], $eidsOk));
+        }
         foreach ($eids as $eid) {
             db()->prepare('INSERT IGNORE INTO portero_eventos (admin_id,evento_id) VALUES(?,?)')->execute([$cid,$eid]);
         }
@@ -102,13 +116,21 @@ $camareros = $esSuperAdmin
         WHERE c.role='camarero'
         GROUP BY c.id ORDER BY c.username")->fetchAll()
     : (function() {
-        $st = db()->prepare("SELECT c.*, GROUP_CONCAT(e.nombre ORDER BY e.nombre SEPARATOR ', ') as eventos_asignados
+        // El nombre de los eventos solo se muestra si son míos; si el camarero
+        // también está en eventos de otro admin, se indica el conteo sin revelar
+        // de qué evento se trata (es información del otro organizador).
+        $st = db()->prepare("SELECT c.*,
+                GROUP_CONCAT(DISTINCT CASE WHEN e.admin_id=? THEN e.nombre END ORDER BY e.nombre SEPARATOR ', ') as eventos_asignados,
+                COUNT(DISTINCT CASE WHEN e.admin_id IS NOT NULL AND e.admin_id!=? THEN e.id END) as otros_eventos
             FROM admin_users c
             LEFT JOIN portero_eventos pe ON pe.admin_id=c.id
             LEFT JOIN eventos e ON e.id=pe.evento_id
-            WHERE c.role='camarero' AND c.creado_por=?
+            WHERE c.role='camarero' AND (c.creado_por=? OR EXISTS(
+                SELECT 1 FROM portero_eventos pe2 JOIN eventos e2 ON e2.id=pe2.evento_id
+                WHERE pe2.admin_id=c.id AND e2.admin_id=?
+            ))
             GROUP BY c.id ORDER BY c.username");
-        $st->execute([Auth::adminId()]);
+        $st->execute([Auth::adminId(), Auth::adminId(), Auth::adminId(), Auth::adminId()]);
         return $st->fetchAll();
     })();
 
@@ -143,7 +165,12 @@ require_once __DIR__ . '/../_header.php';
               <tr>
                 <td><strong><?= h($c['username']) ?></strong></td>
                 <td><?= h($c['name'] ?: '—') ?></td>
-                <td style="font-size:12px;color:#888;max-width:180px;"><?= h($c['eventos_asignados'] ?: 'Ninguno') ?></td>
+                <td style="font-size:12px;color:#888;max-width:180px;">
+                  <?= h($c['eventos_asignados'] ?: 'Ninguno') ?>
+                  <?php if (!$esSuperAdmin && !empty($c['otros_eventos'])): ?>
+                  <br><span style="color:#aaa;">+ <?= (int)$c['otros_eventos'] ?> evento(s) de otro organizador</span>
+                  <?php endif; ?>
+                </td>
                 <td><?= $c['active']?'<span class="badge badge-green">Activo</span>':'<span class="badge badge-red">Inactivo</span>' ?></td>
                 <td>
                   <div style="display:flex;gap:6px;flex-wrap:wrap;">
