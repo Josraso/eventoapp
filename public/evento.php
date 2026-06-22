@@ -340,6 +340,7 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
               <strong><?= number_format((float)$p['precio'], 2, ',', '.') ?> €</strong>
             </div>
           <?php endforeach; ?>
+          <a href="barra.php?slug=<?= urlencode($slug) ?>" class="btn btn-full btn-outline" style="margin-top:14px;">🍹 Comprar solo consumiciones (sin entrada)</a>
         </div>
         <?php endif; ?>
       </div>
@@ -540,7 +541,6 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
           <input type="checkbox" id="quiereConsumiciones" onchange="document.getElementById('consumiciones-wrap').style.display=this.checked?'':'none';if(!this.checked){document.querySelectorAll('.consumicion-qty').forEach(function(el){el.value=0});recalcularTotal();}">
           🍹 Quiero añadir consumiciones de paso (opcional)
         </label>
-        <p style="font-size:12px;color:#888;margin:6px 0 0;">Si solo quieres comprar consumiciones sin entrada, <a href="barra.php?slug=<?= urlencode($slug) ?>">hazlo aquí</a>.</p>
         <div id="consumiciones-wrap" style="display:none;margin-top:14px;">
           <?php foreach ($productosBarra as $p): ?>
           <div class="field-row" style="align-items:center;">
