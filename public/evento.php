@@ -24,6 +24,7 @@ $lleno   = $evento['max_inscritos'] && $totalInscritos >= $evento['max_inscritos
 $cerrado = $evento['fecha_limite_inscripcion'] && strtotime($evento['fecha_limite_inscripcion']) < time();
 $archivado = (bool)$evento['archivado'];
 $disponible = !$lleno && !$cerrado && !$archivado;
+$fechasEvento = fechasEvento($evento['id']);
 
 // Campos personalizados
 $campos = db()->prepare('SELECT * FROM evento_campos WHERE evento_id=? ORDER BY sort_order ASC');
@@ -317,8 +318,16 @@ $modo = $_GET['modo'] ?? 'elegir'; // elegir | login | registro
         <h1 style="font-size:28px;font-weight:800;letter-spacing:-.02em;margin-bottom:14px;"><?= h($evento['nombre']) ?></h1>
 
         <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:20px;">
-          <?php if ($evento['fecha_evento']): ?>
-            <span style="font-size:14px;color:#666;">📅 <?= date('d/m/Y H:i', strtotime($evento['fecha_evento'])) ?></span>
+          <?php if (!empty($fechasEvento)): ?>
+            <span style="font-size:14px;color:#666;">
+              📅 <?= count($fechasEvento) > 1 ? 'Fechas: ' : '' ?>
+              <?= h(implode(' · ', array_map(fn($f) => date('d/m/Y H:i', strtotime($f)), $fechasEvento))) ?>
+            </span>
+          <?php endif; ?>
+          <?php if ($evento['fecha_limite_inscripcion']): ?>
+            <span style="font-size:14px;color:<?= $cerrado ? '#d33' : '#666' ?>;">
+              ⏰ <?= $cerrado ? 'Inscripción cerrada' : 'Fecha límite de inscripción' ?>: <?= date('d/m/Y H:i', strtotime($evento['fecha_limite_inscripcion'])) ?>
+            </span>
           <?php endif; ?>
           <?php if ($evento['lugar']):
             $mapsUrl = $evento['lugar_url'] ?: ('https://www.google.com/maps/search/?api=1&query=' . urlencode($evento['lugar']));

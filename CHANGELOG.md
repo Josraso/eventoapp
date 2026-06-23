@@ -3,6 +3,18 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado [SemVer](https://semver.org/lang/es/) (`MAJOR.MINOR.PATCH`).
 
+## [1.5.0] - 2026-06-23
+
+### Añadido
+- Soporte para varias fechas por evento (festivales/eventos de varios días): el panel admin permite añadir una o varias fechas, y la web pública muestra todas las fechas (o el rango) en la ficha y en el listado de eventos.
+- La ficha pública del evento ahora muestra claramente la fecha límite de inscripción, distinguiéndola visualmente de la(s) fecha(s) del evento, y la marca en rojo si ya está cerrada.
+
+### Corregido
+- Un admin (no superadmin) podía ver, editar, desactivar y eliminar cualquier usuario registrado en el sistema desde `admin/usuarios`, incluidos los que nunca compraron en sus propios eventos. Ahora solo ve y gestiona usuarios con al menos un pedido en un evento suyo.
+- Email de aviso de nuevo pedido al admin/superadmin propietario del evento: antes solo se enviaba si era necesario confirmar el pago, ahora se envía siempre al recibir un pedido (entradas y/o consumiciones), esté o no ya pagado.
+- Porteros y camareros que trabajan eventos de varios organizadores ahora son visibles para todos los admins de esos eventos, no solo para quien los creó; al reasignar eventos solo se modifican las asignaciones propias, sin tocar las de otros admins.
+- Error 404 al entrar directamente por el dominio raíz: ahora redirige a la web pública.
+
 ## [1.4.0] - 2026-06-22
 
 ### Añadido

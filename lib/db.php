@@ -97,6 +97,29 @@ function redirect(string $url): void
     exit;
 }
 
+// Guarda las fechas de un evento (una o varias) en eventos_fechas y mantiene
+// eventos.fecha_evento sincronizada con la más próxima, ya que esa columna
+// sigue siendo la referencia para ordenar, archivar y mostrar en emails/PDFs.
+function guardarFechasEvento(int $eventoId, array $fechas): void
+{
+    $fechas = array_values(array_unique(array_filter($fechas)));
+    sort($fechas);
+    db()->prepare('DELETE FROM eventos_fechas WHERE evento_id=?')->execute([$eventoId]);
+    foreach ($fechas as $i => $f) {
+        db()->prepare('INSERT INTO eventos_fechas (evento_id, fecha, sort_order) VALUES (?,?,?)')
+           ->execute([$eventoId, $f, $i]);
+    }
+    db()->prepare('UPDATE eventos SET fecha_evento=? WHERE id=?')
+       ->execute([$fechas[0] ?? null, $eventoId]);
+}
+
+function fechasEvento(int $eventoId): array
+{
+    $st = db()->prepare('SELECT fecha FROM eventos_fechas WHERE evento_id=? ORDER BY fecha ASC');
+    $st->execute([$eventoId]);
+    return $st->fetchAll(PDO::FETCH_COLUMN);
+}
+
 function flash(string $type, string $msg): void
 {
     if (class_exists('Auth')) Auth::ensureSession();
@@ -192,6 +215,18 @@ function runMigrations(): void
             `obligatorio` TINYINT(1) DEFAULT 0,
             `para_titular` TINYINT(1) DEFAULT 1,
             `para_asistentes` TINYINT(1) DEFAULT 1,
+            `sort_order` INT UNSIGNED DEFAULT 0,
+            FOREIGN KEY (`evento_id`) REFERENCES `eventos`(`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // TABLA EVENTOS_FECHAS (fechas del evento: uno o varios días/sesiones).
+        // `eventos.fecha_evento` se mantiene siempre sincronizado con la fecha
+        // más próxima de esta tabla, para no romper el ordenado, el archivado
+        // automático ni los emails/PDFs que ya usan esa columna como referencia.
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `eventos_fechas` (
+            `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `evento_id` INT UNSIGNED NOT NULL,
+            `fecha` DATETIME NOT NULL,
             `sort_order` INT UNSIGNED DEFAULT 0,
             FOREIGN KEY (`evento_id`) REFERENCES `eventos`(`id`) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
@@ -376,6 +411,14 @@ function runMigrations(): void
                 $pdo->exec("ALTER TABLE qr_logs ADD CONSTRAINT fk_qrlogs_consumicion FOREIGN KEY (consumicion_id) REFERENCES consumiciones(id) ON DELETE CASCADE");
             } catch (Exception $e) {}
         }
+
+        // Backfill: eventos existentes que aún no tienen ninguna fila en
+        // eventos_fechas (creados antes de soportar varias fechas) heredan su
+        // fecha_evento como única fecha.
+        $pdo->exec("INSERT INTO eventos_fechas (evento_id, fecha, sort_order)
+            SELECT e.id, e.fecha_evento, 0 FROM eventos e
+            WHERE e.fecha_evento IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM eventos_fechas ef WHERE ef.evento_id=e.id)");
 
         // Auto-archivar eventos por fecha
         $pdo->exec("UPDATE eventos SET archivado=1, fecha_archivo=NOW()

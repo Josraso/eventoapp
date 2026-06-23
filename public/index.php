@@ -64,6 +64,7 @@ $flash    = getFlash();
           $lleno = $ev['max_inscritos'] && $ev['total_inscritos'] >= $ev['max_inscritos'];
           $cerrado = $ev['fecha_limite_inscripcion'] && strtotime($ev['fecha_limite_inscripcion']) < time();
           $disponible = !$lleno && !$cerrado;
+          $fechasEv = fechasEvento($ev['id']);
         ?>
         <a href="evento.php?slug=<?= urlencode($ev['slug']) ?>" class="evento-card">
           <?php if ($ev['imagen']): ?>
@@ -74,11 +75,16 @@ $flash    = getFlash();
           <div class="evento-card-body">
             <div class="evento-card-nombre"><?= h($ev['nombre']) ?></div>
             <div class="evento-card-meta">
-              <?php if ($ev['fecha_evento']): ?>
-                <span>📅 <?= date('d/m/Y H:i', strtotime($ev['fecha_evento'])) ?></span>
+              <?php if (!empty($fechasEv)): ?>
+                <span>📅 <?= count($fechasEv) > 1
+                    ? h(date('d/m/Y', strtotime($fechasEv[0])) . ' - ' . date('d/m/Y', strtotime(end($fechasEv))))
+                    : h(date('d/m/Y H:i', strtotime($fechasEv[0]))) ?></span>
               <?php endif; ?>
               <?php if ($ev['lugar']): ?>
                 <span>📍 <?= h($ev['lugar']) ?></span>
+              <?php endif; ?>
+              <?php if ($ev['fecha_limite_inscripcion']): ?>
+                <span style="<?= $cerrado ? 'color:#d33;' : '' ?>">⏰ Inscripción hasta <?= date('d/m/Y', strtotime($ev['fecha_limite_inscripcion'])) ?></span>
               <?php endif; ?>
             </div>
             <?php $descPlana = trim(html_entity_decode(strip_tags($ev['descripcion'] ?? ''))); if ($descPlana): ?>

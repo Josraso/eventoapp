@@ -26,8 +26,11 @@ if ($id) {
     $stP = db()->prepare('SELECT * FROM productos_consumicion WHERE evento_id=? ORDER BY sort_order ASC');
     $stP->execute([$id]);
     $productos = $stP->fetchAll();
+
+    $fechasEvento = fechasEvento($id);
 } else {
     $productos = [];
+    $fechasEvento = [];
 }
 
 $listaAdmins = $adminRole === 'superadmin'
@@ -47,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nombre     = trim($_POST['nombre'] ?? '');
         $slug       = preg_replace('/[^a-z0-9\-]/', '', strtolower(str_replace(' ', '-', trim($_POST['slug'] ?? $nombre))));
         $descripcion = trim($_POST['descripcion'] ?? '');
-        $fecha_evento = $_POST['fecha_evento'] ?: null;
+        $fechas      = array_filter($_POST['fechas'] ?? []);
         $lugar       = trim($_POST['lugar'] ?? '');
         $lugar_url   = trim($_POST['lugar_url'] ?? '');
         $precio      = (float)str_replace(',', '.', $_POST['precio'] ?? '0');
@@ -72,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$nombre) $error = 'El nombre es obligatorio.';
         elseif (!$slug) $error = 'El slug es obligatorio.';
+        elseif (!$fechas) $error = 'Debes indicar al menos una fecha del evento.';
         else {
             // Verificar slug único
             $chk = db()->prepare('SELECT id FROM eventos WHERE slug=? AND id!=?');
@@ -100,8 +104,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$error) {
             if ($id) {
                 $admin_id_anterior = (int)$evento['admin_id'];
-                db()->prepare('UPDATE eventos SET nombre=?,slug=?,descripcion=?,imagen=?,fecha_evento=?,lugar=?,lugar_url=?,precio=?,es_gratuito=?,max_inscritos=?,fecha_limite_inscripcion=?,metodos_pago=?,metodos_pago_barra=?,campo_qr_extra=?,activo=?,archivado=?,sort_order=?,admin_id=?,updated_at=NOW() WHERE id=?')
-                   ->execute([$nombre,$slug,$descripcion,$imagen,$fecha_evento,$lugar,$lugar_url,$precio,$es_gratuito,$max_inscritos,$fecha_limite,$metodos_str,$metodosBarra_str,$campo_qr,$activo,$archivado,$sort_order,$admin_id_evento,$id]);
+                db()->prepare('UPDATE eventos SET nombre=?,slug=?,descripcion=?,imagen=?,lugar=?,lugar_url=?,precio=?,es_gratuito=?,max_inscritos=?,fecha_limite_inscripcion=?,metodos_pago=?,metodos_pago_barra=?,campo_qr_extra=?,activo=?,archivado=?,sort_order=?,admin_id=?,updated_at=NOW() WHERE id=?')
+                   ->execute([$nombre,$slug,$descripcion,$imagen,$lugar,$lugar_url,$precio,$es_gratuito,$max_inscritos,$fecha_limite,$metodos_str,$metodosBarra_str,$campo_qr,$activo,$archivado,$sort_order,$admin_id_evento,$id]);
 
                 // Si se reasigna el propietario del evento, los porteros y camareros
                 // asignados a este evento pasan a tener también ese admin como
@@ -114,10 +118,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                        ->execute([$admin_id_evento, $id]);
                 }
             } else {
-                db()->prepare('INSERT INTO eventos (nombre,slug,descripcion,imagen,fecha_evento,lugar,lugar_url,precio,es_gratuito,max_inscritos,fecha_limite_inscripcion,metodos_pago,metodos_pago_barra,campo_qr_extra,activo,sort_order,admin_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-                   ->execute([$nombre,$slug,$descripcion,$imagen,$fecha_evento,$lugar,$lugar_url,$precio,$es_gratuito,$max_inscritos,$fecha_limite,$metodos_str,$metodosBarra_str,$campo_qr,$activo,$sort_order,$admin_id_evento]);
+                db()->prepare('INSERT INTO eventos (nombre,slug,descripcion,imagen,lugar,lugar_url,precio,es_gratuito,max_inscritos,fecha_limite_inscripcion,metodos_pago,metodos_pago_barra,campo_qr_extra,activo,sort_order,admin_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+                   ->execute([$nombre,$slug,$descripcion,$imagen,$lugar,$lugar_url,$precio,$es_gratuito,$max_inscritos,$fecha_limite,$metodos_str,$metodosBarra_str,$campo_qr,$activo,$sort_order,$admin_id_evento]);
                 $id = (int)db()->lastInsertId();
             }
+
+            guardarFechasEvento($id, $fechas);
 
             // Guardar campos personalizados: borrar los que no estén en el POST
             $camposPost = $_POST['campos'] ?? [];
@@ -240,12 +246,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <label>Descripción</label>
           <textarea name="descripcion" id="descripcion-editor" rows="5"><?= h($evento['descripcion'] ?? '') ?></textarea>
         </div>
-        <div class="field-row">
-          <div class="field">
-            <label>Fecha y hora del evento</label>
-            <input type="datetime-local" name="fecha_evento"
-                   value="<?= $evento['fecha_evento'] ? date('Y-m-d\TH:i', strtotime($evento['fecha_evento'])) : '' ?>">
+        <div class="field">
+          <label>Fecha(s) y hora del evento</label>
+          <p class="hint" style="margin-top:-4px;margin-bottom:8px;">Añade una fecha si el evento es de un solo día, o varias si dura más días o tiene varias sesiones.</p>
+          <div id="fechas-container">
+            <?php if (empty($fechasEvento)): $fechasEvento = ['']; endif; ?>
+            <?php foreach ($fechasEvento as $fi => $f): ?>
+            <div class="fecha-block" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+              <input type="datetime-local" name="fechas[]" required
+                     value="<?= $f ? date('Y-m-d\TH:i', strtotime($f)) : '' ?>" style="flex:1;">
+              <button type="button" onclick="quitarFecha(this)" class="btn btn-sm btn-danger" style="padding:6px 10px;font-size:11px;">✕</button>
+            </div>
+            <?php endforeach; ?>
           </div>
+          <button type="button" onclick="addFecha()" class="btn btn-sm btn-outline">+ Añadir fecha</button>
+        </div>
+        <div class="field-row">
           <div class="field">
             <label>Límite inscripción</label>
             <input type="datetime-local" name="fecha_limite"
@@ -502,6 +518,20 @@ function showEventoTab(id, btn) {
     document.querySelectorAll('.evento-tab').forEach(b => b.classList.remove('active'));
     document.getElementById('evento-tab-' + id).classList.add('active');
     btn.classList.add('active');
+}
+
+function addFecha() {
+    var html = '<div class="fecha-block" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">'
+        + '<input type="datetime-local" name="fechas[]" required style="flex:1;">'
+        + '<button type="button" onclick="quitarFecha(this)" class="btn btn-sm btn-danger" style="padding:6px 10px;font-size:11px;">✕</button>'
+        + '</div>';
+    document.getElementById('fechas-container').insertAdjacentHTML('beforeend', html);
+}
+function quitarFecha(btn) {
+    var cont = document.getElementById('fechas-container');
+    if (cont.querySelectorAll('.fecha-block').length > 1) {
+        btn.closest('.fecha-block').remove();
+    }
 }
 
 var campoIdx = <?= count($campos) ?>;
