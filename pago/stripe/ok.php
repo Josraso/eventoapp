@@ -31,7 +31,7 @@ if ($ins && $ins['stripe_payment_intent'] && getSetting('stripe_secret_key')) {
             $atts = array_map(fn($p) => ['path' => $p], $paths);
             $m = new Mailer();
             $m->send($user['email'], $user['name'],
-                'Confirmación de tu pedido — ' . $evento['nombre'],
+                'Confirmación de tu pedido de ' . mb_strtolower(etiquetaPedido($inscripcionId)) . ' — ' . $evento['nombre'],
                 Mailer::tplEntradas($ins, $evento, $user), $atts);
             db()->prepare('UPDATE inscripciones SET email_entradas_enviado=1 WHERE id=?')->execute([$inscripcionId]);
             $ok = true;

@@ -47,7 +47,7 @@ if (RedsysAPI::isResponseOk($resp)) {
     $evento = $stEv->fetch();
     $atts = array_map(fn($p) => ['path' => $p], $paths);
     $m = new Mailer();
-    $res = $m->send($user['email'], $user['name'], 'Confirmación de tu pedido — ' . $evento['nombre'], Mailer::tplEntradas($ins, $evento, $user), $atts);
+    $res = $m->send($user['email'], $user['name'], 'Confirmación de tu pedido de ' . mb_strtolower(etiquetaPedido($ins['id'])) . ' — ' . $evento['nombre'], Mailer::tplEntradas($ins, $evento, $user), $atts);
     if ($res['ok']) db()->prepare('UPDATE inscripciones SET email_entradas_enviado=1 WHERE id=?')->execute([$ins['id']]);
     rlog("$ord -> OK, email: " . ($res['ok'] ? 'OK' : 'ERR:' . $res['error']));
 } else {

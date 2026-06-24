@@ -27,6 +27,13 @@ if (empty($productosBarra)) {
     redirect('evento.php?slug=' . urlencode($slug));
 }
 
+// Las consumiciones se venden mientras dure el evento (no se atan a la
+// fecha límite de inscripción, que es un criterio distinto para entradas).
+if (eventoFinalizado($evento)) {
+    flash('error', 'Este evento ya ha finalizado, no se pueden comprar más consumiciones.');
+    redirect('evento.php?slug=' . urlencode($slug));
+}
+
 $metodosActivosBarra = array_filter(explode(',', $evento['metodos_pago_barra'] ?? 'stripe'));
 
 if (!Auth::isUserLogged()) {
@@ -43,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'compr
     $total = 0.0;
     foreach ($_POST['consumiciones'] ?? [] as $pid => $qty) {
         $pid = (int)$pid;
-        $qty = max(0, min(50, (int)$qty));
+        $qty = max(0, (int)$qty);
         if ($qty <= 0 || !isset($productosBarraPorId[$pid])) continue;
         $seleccion[$pid] = $qty;
         $total += (float)$productosBarraPorId[$pid]['precio'] * $qty;
@@ -93,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'compr
                 $insRow = $ins->fetch();
                 $m = new Mailer();
                 $m->send($user['email'], $user['name'],
-                    'Pedido de barra pendiente de pago — ' . $evento['nombre'],
+                    etiquetaPedido($inscripcionId) . ' pendientes de pago — ' . $evento['nombre'],
                     Mailer::tplPedidoPendiente($insRow, $evento, $user, []));
                 db()->prepare('UPDATE inscripciones SET email_pedido_enviado=1 WHERE id=?')->execute([$inscripcionId]);
                 redirect('pedido-pendiente.php?pedido=' . urlencode($numeroPedido));
@@ -106,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'compr
                 $ins->execute([$inscripcionId]);
                 $insRow = $ins->fetch();
                 $m = new Mailer();
-                $m->send($user['email'], $user['name'], 'Tus consumiciones — ' . $evento['nombre'], Mailer::tplEntradas($insRow, $evento, $user), $atts);
+                $m->send($user['email'], $user['name'], 'Confirmación de tu pedido de ' . mb_strtolower(etiquetaPedido($inscripcionId)) . ' — ' . $evento['nombre'], Mailer::tplEntradas($insRow, $evento, $user), $atts);
                 db()->prepare('UPDATE inscripciones SET email_entradas_enviado=1 WHERE id=?')->execute([$inscripcionId]);
                 redirect('mi-cuenta.php?ok=1');
                 break;
@@ -158,7 +165,7 @@ $logoUrl  = ($logoPath && file_exists(__DIR__.'/../'.$logoPath)) ? '../'.$logoPa
             <label style="text-transform:none;font-weight:600;font-size:14px;"><?= h($p['nombre']) ?> — <?= number_format((float)$p['precio'], 2, ',', '.') ?> €</label>
           </div>
           <div class="field" style="max-width:90px;margin-bottom:8px;">
-            <input type="number" name="consumiciones[<?= $p['id'] ?>]" value="0" min="0" max="50"
+            <input type="number" name="consumiciones[<?= $p['id'] ?>]" value="0" min="0"
                    class="consumicion-qty" data-precio="<?= h(number_format((float)$p['precio'], 2, '.', '')) ?>"
                    onchange="recalcularTotalBarra()">
           </div>

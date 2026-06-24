@@ -10,6 +10,11 @@ if (!file_exists($_cfg)) {
 }
 require_once $_cfg;
 
+// Toda la app opera en hora de España. Sin esto, PHP usa UTC por defecto y
+// las fechas que el admin introduce (en su hora local) se comparan mal
+// contra time()/NOW(), cerrando inscripciones 1-2h antes de lo previsto.
+date_default_timezone_set('Europe/Madrid');
+
 set_exception_handler(function (Throwable $e) {
     error_log($e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
     if (!headers_sent()) http_response_code(500);
@@ -42,6 +47,11 @@ function db(): PDO
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
         ]);
+        // Alinea el NOW() de MySQL con la hora de España (incluyendo el cambio
+        // de horario de verano), igual que date_default_timezone_set() hace en
+        // PHP, para que las comparaciones de fecha en SQL no se desincronicen.
+        $offset = (new DateTime('now', new DateTimeZone('Europe/Madrid')))->format('P');
+        $pdo->exec("SET time_zone = '" . $offset . "'");
     } catch (PDOException $e) {
         die('<div style="font-family:sans-serif;padding:30px;max-width:600px;margin:40px auto;border:1px solid #fcc;border-radius:8px;background:#fff1f0"><h2>Error de conexión a la BD</h2><p style="margin-top:8px;">' . htmlspecialchars($e->getMessage()) . '</p></div>');
     }
@@ -118,6 +128,37 @@ function fechasEvento(int $eventoId): array
     $st = db()->prepare('SELECT fecha FROM eventos_fechas WHERE evento_id=? ORDER BY fecha ASC');
     $st->execute([$eventoId]);
     return $st->fetchAll(PDO::FETCH_COLUMN);
+}
+
+// Un evento se considera "en curso o futuro" hasta el final del día de su
+// última fecha. Las consumiciones de barra se pueden vender mientras el
+// evento dure, a diferencia de las entradas, que dejan de venderse en la
+// fecha límite de inscripción (un criterio distinto y normalmente anterior).
+function eventoFinalizado(array $evento): bool
+{
+    if (!empty($evento['archivado'])) return true;
+    $fechas = fechasEvento((int)$evento['id']);
+    $ultima = $fechas ? end($fechas) : ($evento['fecha_evento'] ?? null);
+    if (!$ultima) return false;
+    $finDelDia = date('Y-m-d', strtotime($ultima)) . ' 23:59:59';
+    return strtotime($finDelDia) < time();
+}
+
+// Etiqueta para el asunto de los emails de un pedido: "Entradas",
+// "Consumiciones" o "Entradas y consumiciones", según lo que contenga.
+function etiquetaPedido(int $inscripcionId): string
+{
+    $stE = db()->prepare('SELECT COUNT(*) FROM entradas WHERE inscripcion_id=?');
+    $stE->execute([$inscripcionId]);
+    $tieneEntradas = (int)$stE->fetchColumn() > 0;
+
+    $stC = db()->prepare('SELECT COUNT(*) FROM consumiciones WHERE inscripcion_id=?');
+    $stC->execute([$inscripcionId]);
+    $tieneConsumiciones = (int)$stC->fetchColumn() > 0;
+
+    if ($tieneEntradas && $tieneConsumiciones) return 'Entradas y consumiciones';
+    if ($tieneConsumiciones) return 'Consumiciones';
+    return 'Entradas';
 }
 
 function flash(string $type, string $msg): void

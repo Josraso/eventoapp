@@ -3,6 +3,16 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado [SemVer](https://semver.org/lang/es/) (`MAJOR.MINOR.PATCH`).
 
+## [1.6.0] - 2026-06-24
+
+### Añadido
+- Las consumiciones de barra (con o sin entrada) ya no tienen tope de 50 unidades por producto.
+
+### Corregido
+- La app no fijaba ninguna zona horaria y PHP usaba UTC por defecto, así que la fecha límite de inscripción (y cualquier otra fecha) se cerraba 1-2 horas antes de la hora real introducida por el admin. Ahora toda la app (PHP y las consultas SQL con `NOW()`) usa hora de España (Europe/Madrid, con cambio de horario de verano automático).
+- La compra de consumiciones sin entrada (`barra.php`) no comprobaba ninguna fecha y se podía hacer indefinidamente, incluso con el evento ya terminado. Ahora se permite mientras dure el evento (hasta el final del día de su última fecha) y se cierra al terminar, en vez de atarse a la fecha límite de inscripción de las entradas.
+- El asunto de los emails de pedido (confirmación, pendiente de pago, aviso a admin) era genérico y no decía si el pedido era de entradas, consumiciones o ambas cosas. Ahora el asunto refleja el contenido real del pedido y siempre incluye el nombre del evento.
+
 ## [1.5.0] - 2026-06-23
 
 ### Añadido

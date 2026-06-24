@@ -307,7 +307,7 @@ Concepto: <strong>' . h($pedido) . '</strong> y tu nombre completo.
         $m = new self();
         foreach ($destinatarios as $email => $name) {
             if (!$email) continue;
-            $m->send($email, $name, 'Nuevo pedido recibido — ' . $evento['nombre'], $body);
+            $m->send($email, $name, 'Nuevo pedido de ' . mb_strtolower(etiquetaPedido((int)$inscripcion['id'])) . ' — ' . $evento['nombre'], $body);
         }
     }
 
