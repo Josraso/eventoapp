@@ -95,6 +95,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('ok','Pago confirmado y entradas enviadas.');
         header('Location: ' . $base . '/admin/inscripciones/detalle.php?id='.$id); exit;
     }
+    if ($action === 'marcar_entrada' || $action === 'desmarcar_entrada') {
+        $entId = (int)($_POST['entrada_id'] ?? 0);
+        $stChk = db()->prepare('SELECT id FROM entradas WHERE id=? AND inscripcion_id=?');
+        $stChk->execute([$entId, $id]);
+        if ($stChk->fetch()) {
+            if ($action === 'marcar_entrada') {
+                db()->prepare('UPDATE entradas SET usado=1, usado_at=NOW(), usado_por=? WHERE id=?')->execute([Auth::adminId(), $entId]);
+                flash('ok','Entrada marcada como entrada.');
+            } else {
+                db()->prepare('UPDATE entradas SET usado=0, usado_at=NULL, usado_por=NULL WHERE id=?')->execute([$entId]);
+                flash('ok','Entrada desmarcada.');
+            }
+        }
+        header('Location: ' . $base . '/admin/inscripciones/detalle.php?id='.$id); exit;
+    }
+    if ($action === 'marcar_consumicion' || $action === 'desmarcar_consumicion') {
+        $consId = (int)($_POST['consumicion_id'] ?? 0);
+        $stChk = db()->prepare('SELECT id FROM consumiciones WHERE id=? AND inscripcion_id=?');
+        $stChk->execute([$consId, $id]);
+        if ($stChk->fetch()) {
+            if ($action === 'marcar_consumicion') {
+                db()->prepare('UPDATE consumiciones SET usado=1, usado_at=NOW(), usado_por=? WHERE id=?')->execute([Auth::adminId(), $consId]);
+                flash('ok','Consumición marcada como canjeada.');
+            } else {
+                db()->prepare('UPDATE consumiciones SET usado=0, usado_at=NULL, usado_por=NULL WHERE id=?')->execute([$consId]);
+                flash('ok','Consumición desmarcada.');
+            }
+        }
+        header('Location: ' . $base . '/admin/inscripciones/detalle.php?id='.$id); exit;
+    }
     if ($action === 'eliminar_entrada') {
         $entId = (int)($_POST['entrada_id'] ?? 0);
         $stChk = db()->prepare('SELECT id FROM entradas WHERE id=? AND inscripcion_id=?');
@@ -194,6 +224,17 @@ $bc = match($ins['estado_pago']) { 'pagado'=>'badge-green','pendiente'=>'badge-o
           <?php if (!empty($ent['codigo_corto'])): ?>
             <span class="badge badge-blue" style="font-family:monospace;letter-spacing:.05em;">Código: <?= h($ent['codigo_corto']) ?></span>
           <?php endif; ?>
+          <form method="POST" style="display:inline;">
+            <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
+            <input type="hidden" name="entrada_id" value="<?= $ent['id'] ?>">
+            <?php if ($ent['usado']): ?>
+              <input type="hidden" name="action" value="desmarcar_entrada">
+              <button type="submit" class="btn btn-sm btn-outline">Desmarcar</button>
+            <?php else: ?>
+              <input type="hidden" name="action" value="marcar_entrada">
+              <button type="submit" class="btn btn-sm btn-success">✓ Marcar entrada</button>
+            <?php endif; ?>
+          </form>
           <a href="descargar-pdf.php?id=<?= $ins['id'] ?>" class="btn btn-sm btn-outline" target="_blank">⬇ PDF</a>
           <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('edit-ent-<?= $ent['id'] ?>').style.display='block';this.style.display='none';">✎ Editar</button>
           <?php if (count($entradas) > 1): ?>
@@ -253,6 +294,17 @@ $bc = match($ins['estado_pago']) { 'pagado'=>'badge-green','pendiente'=>'badge-o
           <?php if (!empty($cons['codigo_corto'])): ?>
             <span class="badge badge-blue" style="font-family:monospace;letter-spacing:.05em;">Código: <?= h($cons['codigo_corto']) ?></span>
           <?php endif; ?>
+          <form method="POST" style="display:inline;">
+            <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
+            <input type="hidden" name="consumicion_id" value="<?= $cons['id'] ?>">
+            <?php if ($cons['usado']): ?>
+              <input type="hidden" name="action" value="desmarcar_consumicion">
+              <button type="submit" class="btn btn-sm btn-outline">Desmarcar</button>
+            <?php else: ?>
+              <input type="hidden" name="action" value="marcar_consumicion">
+              <button type="submit" class="btn btn-sm btn-success">✓ Marcar canjeada</button>
+            <?php endif; ?>
+          </form>
         </div>
       </div>
       <?php endforeach; ?>

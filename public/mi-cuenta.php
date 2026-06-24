@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 // Cargar inscripciones del usuario
 $stIns = db()->prepare("
-    SELECT i.*, e.nombre as evento_nombre, e.fecha_evento, e.lugar, e.slug as evento_slug, e.es_gratuito
+    SELECT i.*, e.id as evt_id, e.nombre as evento_nombre, e.fecha_evento, e.lugar, e.slug as evento_slug, e.es_gratuito, e.archivado
     FROM inscripciones i
     JOIN eventos e ON e.id = i.evento_id
     WHERE i.user_id = ? AND i.estado_pago != 'fallido'
@@ -115,7 +115,7 @@ $stIns = db()->prepare("
 $stIns->execute([Auth::userId()]);
 $inscripciones = $stIns->fetchAll();
 
-// Construir, para cada pedido, sus entradas/consumiciones y si es mixto
+// Construir, para cada pedido, sus entradas/consumiciones, si es mixto y si su evento ya pasó
 $pedidosConDatos = [];
 foreach ($inscripciones as $ins) {
     $stEnt = db()->prepare('SELECT * FROM entradas WHERE inscripcion_id=? ORDER BY es_titular DESC, id ASC');
@@ -129,10 +129,16 @@ foreach ($inscripciones as $ins) {
     $consActivas = array_filter($consumiciones, fn($c) => !$c['usado']);
     $consCanjeadas = array_filter($consumiciones, fn($c) => $c['usado']);
     $esMixto = !empty($entradas) && !empty($consumiciones);
-    $pedidosConDatos[$ins['id']] = compact('ins','entradas','entradasActivas','entradasCanjeadas','consumiciones','consActivas','consCanjeadas','esMixto');
+    $esPasado = eventoFinalizado(['id' => $ins['evt_id'], 'archivado' => $ins['archivado'], 'fecha_evento' => $ins['fecha_evento']]);
+    $pedidosConDatos[$ins['id']] = compact('ins','entradas','entradasActivas','entradasCanjeadas','consumiciones','consActivas','consCanjeadas','esMixto','esPasado');
 }
-$pedidosConEntradas = array_filter($pedidosConDatos, fn($pd) => !empty($pd['entradas']));
-$pedidosConConsumiciones = array_filter($pedidosConDatos, fn($pd) => !empty($pd['consumiciones']));
+$pedidosActuales = array_filter($pedidosConDatos, fn($pd) => !$pd['esPasado']);
+$pedidosPasados   = array_filter($pedidosConDatos, fn($pd) => $pd['esPasado']);
+
+$pedidosConEntradas = array_filter($pedidosActuales, fn($pd) => !empty($pd['entradas']));
+$pedidosConConsumiciones = array_filter($pedidosActuales, fn($pd) => !empty($pd['consumiciones']));
+$pedidosConEntradasPasadas = array_filter($pedidosPasados, fn($pd) => !empty($pd['entradas']));
+$pedidosConConsumicionesPasadas = array_filter($pedidosPasados, fn($pd) => !empty($pd['consumiciones']));
 
 function renderEntradaItem(array $ent, bool $canjeada): void
 {
@@ -274,6 +280,70 @@ function renderPedidoBox(array $pd, string $tipo): void
     </div>
     <?php
 }
+
+// Renderiza el bloque de tabs "Entradas" / "Consumiciones" con sus pedidos,
+// usado tanto para inscripciones actuales como para pasadas (sufijo distinto
+// para no duplicar ids en el DOM).
+function renderTipoTabs(array $pedidosConEntradas, array $pedidosConConsumiciones, string $sufijo): void
+{
+    if (empty($pedidosConEntradas) && empty($pedidosConConsumiciones)) {
+        ?>
+        <p style="font-size:13px;color:#aaa;">No hay pedidos en esta sección.</p>
+        <?php
+        return;
+    }
+    ?>
+    <div class="tabs" id="tipoTabs-<?= $sufijo ?>">
+      <button type="button" class="tab active" onclick="showTipoTab('entradas','<?= $sufijo ?>',this)">🎫 Entradas (<?= count($pedidosConEntradas) ?>)</button>
+      <button type="button" class="tab" onclick="showTipoTab('consumiciones','<?= $sufijo ?>',this)">🍹 Consumiciones (<?= count($pedidosConConsumiciones) ?>)</button>
+    </div>
+
+    <?php
+      $entActivos    = array_filter($pedidosConEntradas, fn($pd) => $pd['ins']['estado_pago']!=='pagado' || !empty($pd['entradasActivas']));
+      $entCanjeados  = array_filter($pedidosConEntradas, fn($pd) => $pd['ins']['estado_pago']==='pagado' && empty($pd['entradasActivas']));
+      $consActivosP  = array_filter($pedidosConConsumiciones, fn($pd) => $pd['ins']['estado_pago']!=='pagado' || !empty($pd['consActivas']));
+      $consCanjeadosP= array_filter($pedidosConConsumiciones, fn($pd) => $pd['ins']['estado_pago']==='pagado' && empty($pd['consActivas']));
+    ?>
+
+    <div class="tipo-tab-panel active" id="tipo-tab-entradas-<?= $sufijo ?>">
+      <?php if (empty($pedidosConEntradas)): ?>
+        <p style="font-size:13px;color:#aaa;">No tienes pedidos con entradas.</p>
+      <?php else: ?>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+        <?php foreach ($entActivos as $pd): renderPedidoBox($pd, 'entradas'); endforeach; ?>
+        </div>
+        <?php if (empty($entActivos)): ?>
+          <p style="font-size:13px;color:#aaa;">Todos los pedidos de entradas ya han sido canjeados.</p>
+        <?php endif; ?>
+        <?php if (!empty($entCanjeados)): ?>
+          <div class="canjeadas-toggle" onclick="toggleCanjeadas('pedCanj-entradas-<?= $sufijo ?>')">▾ Ver pedidos canjeados (<?= count($entCanjeados) ?>)</div>
+          <div id="pedCanj-entradas-<?= $sufijo ?>" style="display:none;margin-top:14px;flex-direction:column;gap:16px;">
+            <?php foreach ($entCanjeados as $pd): renderPedidoBox($pd, 'entradas'); endforeach; ?>
+          </div>
+        <?php endif; ?>
+      <?php endif; ?>
+    </div>
+
+    <div class="tipo-tab-panel" id="tipo-tab-consumiciones-<?= $sufijo ?>" style="display:none;">
+      <?php if (empty($pedidosConConsumiciones)): ?>
+        <p style="font-size:13px;color:#aaa;">No tienes pedidos con consumiciones.</p>
+      <?php else: ?>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+        <?php foreach ($consActivosP as $pd): renderPedidoBox($pd, 'consumiciones'); endforeach; ?>
+        </div>
+        <?php if (empty($consActivosP)): ?>
+          <p style="font-size:13px;color:#aaa;">Todos los pedidos de consumiciones ya han sido canjeados.</p>
+        <?php endif; ?>
+        <?php if (!empty($consCanjeadosP)): ?>
+          <div class="canjeadas-toggle" onclick="toggleCanjeadas('pedCanj-consumiciones-<?= $sufijo ?>')">▾ Ver pedidos canjeados (<?= count($consCanjeadosP) ?>)</div>
+          <div id="pedCanj-consumiciones-<?= $sufijo ?>" style="display:none;margin-top:14px;flex-direction:column;gap:16px;">
+            <?php foreach ($consCanjeadosP as $pd): renderPedidoBox($pd, 'consumiciones'); endforeach; ?>
+          </div>
+        <?php endif; ?>
+      <?php endif; ?>
+    </div>
+    <?php
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -338,10 +408,11 @@ function renderPedidoBox(array $pd, string $tipo): void
 
     <div class="tabs" id="mainTabs">
       <button class="tab active" onclick="showTab('inscripciones',this)">Mis inscripciones</button>
+      <button class="tab" onclick="showTab('pasadas',this)">Mis inscripciones pasadas (<?= count($pedidosPasados) ?>)</button>
       <button class="tab" onclick="showTab('cuenta',this)">Datos de cuenta</button>
     </div>
 
-    <!-- TAB: INSCRIPCIONES -->
+    <!-- TAB: INSCRIPCIONES ACTUALES -->
     <div class="tab-panel active" id="tab-inscripciones">
       <?php if (empty($inscripciones)): ?>
         <div class="card" style="text-align:center;padding:48px 24px;">
@@ -350,56 +421,19 @@ function renderPedidoBox(array $pd, string $tipo): void
           <p style="color:#888;margin-bottom:20px;">Todavía no te has inscrito a ningún evento.</p>
           <a href="index.php" class="btn">Ver eventos disponibles</a>
         </div>
+      <?php elseif (empty($pedidosActuales)): ?>
+        <p style="font-size:13px;color:#aaa;">No tienes inscripciones en eventos actuales o próximos. Mira la pestaña "Mis inscripciones pasadas".</p>
       <?php else: ?>
-        <div class="tabs" id="tipoTabs">
-          <button type="button" class="tab active" onclick="showTipoTab('entradas',this)">🎫 Entradas (<?= count($pedidosConEntradas) ?>)</button>
-          <button type="button" class="tab" onclick="showTipoTab('consumiciones',this)">🍹 Consumiciones (<?= count($pedidosConConsumiciones) ?>)</button>
-        </div>
+        <?php renderTipoTabs($pedidosConEntradas, $pedidosConConsumiciones, 'actual'); ?>
+      <?php endif; ?>
+    </div>
 
-        <?php
-          $entActivos    = array_filter($pedidosConEntradas, fn($pd) => $pd['ins']['estado_pago']!=='pagado' || !empty($pd['entradasActivas']));
-          $entCanjeados  = array_filter($pedidosConEntradas, fn($pd) => $pd['ins']['estado_pago']==='pagado' && empty($pd['entradasActivas']));
-          $consActivosP  = array_filter($pedidosConConsumiciones, fn($pd) => $pd['ins']['estado_pago']!=='pagado' || !empty($pd['consActivas']));
-          $consCanjeadosP= array_filter($pedidosConConsumiciones, fn($pd) => $pd['ins']['estado_pago']==='pagado' && empty($pd['consActivas']));
-        ?>
-
-        <div class="tipo-tab-panel active" id="tipo-tab-entradas">
-          <?php if (empty($pedidosConEntradas)): ?>
-            <p style="font-size:13px;color:#aaa;">No tienes pedidos con entradas.</p>
-          <?php else: ?>
-            <div style="display:flex;flex-direction:column;gap:16px;">
-            <?php foreach ($entActivos as $pd): renderPedidoBox($pd, 'entradas'); endforeach; ?>
-            </div>
-            <?php if (empty($entActivos)): ?>
-              <p style="font-size:13px;color:#aaa;">Todos los pedidos de entradas ya han sido canjeados.</p>
-            <?php endif; ?>
-            <?php if (!empty($entCanjeados)): ?>
-              <div class="canjeadas-toggle" onclick="toggleCanjeadas('pedCanj-entradas')">▾ Ver pedidos canjeados (<?= count($entCanjeados) ?>)</div>
-              <div id="pedCanj-entradas" style="display:none;margin-top:14px;flex-direction:column;gap:16px;">
-                <?php foreach ($entCanjeados as $pd): renderPedidoBox($pd, 'entradas'); endforeach; ?>
-              </div>
-            <?php endif; ?>
-          <?php endif; ?>
-        </div>
-
-        <div class="tipo-tab-panel" id="tipo-tab-consumiciones" style="display:none;">
-          <?php if (empty($pedidosConConsumiciones)): ?>
-            <p style="font-size:13px;color:#aaa;">No tienes pedidos con consumiciones.</p>
-          <?php else: ?>
-            <div style="display:flex;flex-direction:column;gap:16px;">
-            <?php foreach ($consActivosP as $pd): renderPedidoBox($pd, 'consumiciones'); endforeach; ?>
-            </div>
-            <?php if (empty($consActivosP)): ?>
-              <p style="font-size:13px;color:#aaa;">Todos los pedidos de consumiciones ya han sido canjeados.</p>
-            <?php endif; ?>
-            <?php if (!empty($consCanjeadosP)): ?>
-              <div class="canjeadas-toggle" onclick="toggleCanjeadas('pedCanj-consumiciones')">▾ Ver pedidos canjeados (<?= count($consCanjeadosP) ?>)</div>
-              <div id="pedCanj-consumiciones" style="display:none;margin-top:14px;flex-direction:column;gap:16px;">
-                <?php foreach ($consCanjeadosP as $pd): renderPedidoBox($pd, 'consumiciones'); endforeach; ?>
-              </div>
-            <?php endif; ?>
-          <?php endif; ?>
-        </div>
+    <!-- TAB: INSCRIPCIONES PASADAS -->
+    <div class="tab-panel" id="tab-pasadas">
+      <?php if (empty($pedidosPasados)): ?>
+        <p style="font-size:13px;color:#aaa;">No tienes inscripciones de eventos ya finalizados.</p>
+      <?php else: ?>
+        <?php renderTipoTabs($pedidosConEntradasPasadas, $pedidosConConsumicionesPasadas, 'pasado'); ?>
       <?php endif; ?>
     </div>
 
@@ -446,17 +480,20 @@ function showTab(id, btn) {
     document.getElementById('tab-' + id).classList.add('active');
     btn.classList.add('active');
 }
-function showTipoTab(tipo, btn) {
-    document.querySelectorAll('#tipoTabs .tab').forEach(b => b.classList.remove('active'));
+function showTipoTab(tipo, sufijo, btn) {
+    document.querySelectorAll('#tipoTabs-' + sufijo + ' .tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    document.querySelectorAll('.tipo-tab-panel').forEach(p => p.style.display = 'none');
-    document.getElementById('tipo-tab-' + tipo).style.display = 'block';
+    document.getElementById('tipo-tab-entradas-' + sufijo).style.display = 'none';
+    document.getElementById('tipo-tab-consumiciones-' + sufijo).style.display = 'none';
+    document.getElementById('tipo-tab-' + tipo + '-' + sufijo).style.display = 'block';
 }
 function goToPedido(tipo, pedidoId) {
-    var btn = document.querySelector('#tipoTabs .tab:nth-child(' + (tipo === 'entradas' ? 1 : 2) + ')');
-    showTipoTab(tipo, btn);
-    var target = document.getElementById('pedido-' + tipo + '-' + pedidoId);
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    var pedidoBox = document.getElementById('pedido-' + tipo + '-' + pedidoId);
+    if (!pedidoBox) return;
+    var sufijo = pedidoBox.closest('#tab-pasadas') ? 'pasado' : 'actual';
+    var btn = document.querySelector('#tipoTabs-' + sufijo + ' .tab:nth-child(' + (tipo === 'entradas' ? 1 : 2) + ')');
+    if (btn) showTipoTab(tipo, sufijo, btn);
+    pedidoBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 function toggleEnviar(id) {
     var el = document.getElementById('enviar-' + id);

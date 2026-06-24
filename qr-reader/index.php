@@ -407,7 +407,7 @@ function renderListado(data) {
         if (e.comprador && e.comprador !== e.nombre) {
             html += '<div class="meta">Comprado por: ' + esc(e.comprador) + '</div>';
         }
-        html += '<div class="meta">' + esc(e.pedido) + (e.usado_at ? ' · ✓ ' + esc(e.usado_at) : '') + '</div></div>';
+        html += '<div class="meta">' + esc(e.pedido) + (e.codigo ? ' · Código: ' + esc(e.codigo) : '') + (e.usado_at ? ' · ✓ ' + esc(e.usado_at) : '') + '</div></div>';
         if (e.usado) {
             html += '<button class="btn-desmarcar" onclick="marcarEntrada(' + e.id + ',\'desmarcar\')">Desmarcar</button>';
         } else {

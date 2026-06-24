@@ -427,7 +427,7 @@ function renderListado(data) {
         html += '<div class="entrada-row">';
         html += '<div class="' + (e.usado ? 'dot-ok' : 'dot-no') + '"></div>';
         html += '<div style="flex:1"><div class="nombre">' + esc(e.nombre) + '</div>';
-        html += '<div class="meta">' + esc(e.pedido) + (e.usado_at ? ' · ✓ ' + esc(e.usado_at) : '') + '</div></div>';
+        html += '<div class="meta">' + esc(e.pedido) + (e.codigo ? ' · Código: ' + esc(e.codigo) : '') + (e.usado_at ? ' · ✓ ' + esc(e.usado_at) : '') + '</div></div>';
         if (e.usado) {
             html += '<button class="btn-desmarcar" onclick="marcarConsumicion(' + e.id + ',\'desmarcar\')">Desmarcar</button>';
         } else {

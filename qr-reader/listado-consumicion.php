@@ -20,7 +20,7 @@ if (!$eventoId || !in_array($eventoId, $eventosCamarero)) {
 }
 
 $st = db()->prepare("
-    SELECT c.id, c.usado, c.usado_at, c.origen, c.nombre_comprador,
+    SELECT c.id, c.usado, c.usado_at, c.origen, c.nombre_comprador, c.codigo_corto,
            p.nombre as producto_nombre, i.numero_pedido
     FROM consumiciones c
     JOIN productos_consumicion p ON p.id = c.producto_id
@@ -38,6 +38,7 @@ $result = array_map(fn($r) => [
     'usado_at'  => $r['usado_at'] ? date('H:i', strtotime($r['usado_at'])) : '',
     'pedido'    => $r['numero_pedido'] ?: ($r['nombre_comprador'] ?: 'Venta en caja'),
     'comprador' => $r['nombre_comprador'],
+    'codigo'    => $r['codigo_corto'],
 ], $rows);
 
 echo json_encode($result);

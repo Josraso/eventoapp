@@ -20,7 +20,7 @@ if (!$eventoId || !in_array($eventoId, $eventosPortero)) {
 }
 
 $st = db()->prepare("
-    SELECT e.id, e.nombre_asistente, e.es_titular, e.usado, e.usado_at,
+    SELECT e.id, e.nombre_asistente, e.es_titular, e.usado, e.usado_at, e.codigo_corto,
            i.numero_pedido, u.name as comprador_nombre
     FROM entradas e
     JOIN inscripciones i ON i.id = e.inscripcion_id
@@ -39,6 +39,7 @@ $result = array_map(fn($r) => [
     'usado_at'  => $r['usado_at'] ? date('H:i', strtotime($r['usado_at'])) : '',
     'pedido'    => $r['numero_pedido'],
     'comprador' => $r['comprador_nombre'],
+    'codigo'    => $r['codigo_corto'],
 ], $rows);
 
 echo json_encode($result);

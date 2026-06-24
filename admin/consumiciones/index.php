@@ -6,6 +6,39 @@ Auth::adminCheck('superadmin', 'admin');
 $base = rtrim(defined('APP_BASE_URL') ? APP_BASE_URL : getSetting('app_base_url'), '/');
 $esSuperAdmin = Auth::adminRole() === 'superadmin';
 
+// ── MARCAR/DESMARCAR CONSUMICIÓN MANUALMENTE ──────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    Auth::checkCsrf();
+    $consId = (int)($_POST['consumicion_id'] ?? 0);
+    $action = $_POST['action'] ?? '';
+
+    if (!$esSuperAdmin) {
+        $stOwn = db()->prepare('SELECT COUNT(*) FROM consumiciones c JOIN eventos e ON e.id=c.evento_id WHERE c.id=? AND e.admin_id=?');
+        $stOwn->execute([$consId, Auth::adminId()]);
+        if ((int)$stOwn->fetchColumn() === 0) {
+            flash('error', 'No tienes permiso sobre esta consumición.');
+            header('Location: ' . $base . '/admin/consumiciones/index.php'); exit;
+        }
+    }
+
+    if ($action === 'marcar') {
+        db()->prepare('UPDATE consumiciones SET usado=1, usado_at=NOW(), usado_por=? WHERE id=?')
+           ->execute([Auth::adminId(), $consId]);
+        flash('ok', 'Consumición marcada como canjeada.');
+    } elseif ($action === 'desmarcar') {
+        db()->prepare('UPDATE consumiciones SET usado=0, usado_at=NULL, usado_por=NULL WHERE id=?')
+           ->execute([$consId]);
+        flash('ok', 'Consumición desmarcada.');
+    }
+
+    header('Location: ' . $base . '/admin/consumiciones/index.php?' . http_build_query(array_filter([
+        'evento_id' => $_POST['evento_id'] ?? '',
+        'origen'    => $_POST['origen_actual'] ?? '',
+        'q'         => $_POST['q_actual'] ?? '',
+    ])));
+    exit;
+}
+
 $pageTitle = 'Consumiciones';
 require_once __DIR__ . '/../_header.php';
 
@@ -83,7 +116,7 @@ $pedidos = $stPedidos->fetchAll();
 
 // ── VENTAS EN CAJA (sin pedido) ───────────────────────────────────────────────
 $stCaja = db()->prepare("
-    SELECT c.id, c.nombre_comprador, c.precio, c.created_at, c.usado,
+    SELECT c.id, c.nombre_comprador, c.precio, c.created_at, c.usado, c.codigo_corto,
         p.nombre as producto_nombre, e.nombre as evento_nombre
     FROM consumiciones c
     JOIN eventos e ON e.id=c.evento_id
@@ -207,19 +240,36 @@ $ventasCaja = $stCaja->fetchAll();
   <div class="table-wrap">
     <table class="admin">
       <thead>
-        <tr><th>Producto</th><th>Evento</th><th>Comprador</th><th>Precio</th><th>Estado</th><th>Fecha</th></tr>
+        <tr><th>Producto</th><th>Evento</th><th>Comprador</th><th>Código</th><th>Precio</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr>
       </thead>
       <tbody>
         <?php if (empty($ventasCaja)): ?>
-          <tr><td colspan="6" style="text-align:center;color:#aaa;padding:30px;">Sin ventas en caja.</td></tr>
+          <tr><td colspan="8" style="text-align:center;color:#aaa;padding:30px;">Sin ventas en caja.</td></tr>
         <?php else: foreach ($ventasCaja as $vc): ?>
           <tr>
             <td style="font-weight:600;"><?= h($vc['producto_nombre']) ?></td>
             <td style="font-size:13px;color:#666;"><?= h($vc['evento_nombre']) ?></td>
             <td style="font-size:13px;"><?= h($vc['nombre_comprador'] ?: '—') ?></td>
+            <td><code style="font-size:12px;"><?= h($vc['codigo_corto'] ?? '—') ?></code></td>
             <td style="font-weight:700;"><?= number_format((float)$vc['precio'], 2, ',', '.') ?> €</td>
             <td><?= $vc['usado'] ? '<span class="badge badge-green">✓ Canjeada</span>' : '<span class="badge badge-gray">Pendiente</span>' ?></td>
             <td style="font-size:12px;color:#aaa;"><?= date('d/m/Y H:i', strtotime($vc['created_at'])) ?></td>
+            <td>
+              <form method="POST">
+                <input type="hidden" name="_csrf" value="<?= h(Auth::csrfToken()) ?>">
+                <input type="hidden" name="consumicion_id" value="<?= $vc['id'] ?>">
+                <input type="hidden" name="evento_id" value="<?= $eventoFiltro ?>">
+                <input type="hidden" name="origen_actual" value="<?= h($origenFiltro) ?>">
+                <input type="hidden" name="q_actual" value="<?= h($q) ?>">
+                <?php if ($vc['usado']): ?>
+                  <input type="hidden" name="action" value="desmarcar">
+                  <button type="submit" class="btn btn-sm btn-outline">Desmarcar</button>
+                <?php else: ?>
+                  <input type="hidden" name="action" value="marcar">
+                  <button type="submit" class="btn btn-sm btn-success">✓ Marcar</button>
+                <?php endif; ?>
+              </form>
+            </td>
           </tr>
         <?php endforeach; endif; ?>
       </tbody>

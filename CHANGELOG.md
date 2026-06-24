@@ -3,6 +3,12 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado [SemVer](https://semver.org/lang/es/) (`MAJOR.MINOR.PATCH`).
 
+## [1.7.0] - 2026-06-24
+
+### Añadido
+- En `mi-cuenta.php` las inscripciones del cliente se separan ahora en dos pestañas: "Mis inscripciones" (eventos actuales o futuros) y "Mis inscripciones pasadas" (eventos ya finalizados), cada una con su propio desglose de entradas/consumiciones, para no mezclar pedidos de eventos antiguos con los vigentes.
+- Las entradas y consumiciones canjeadas/archivadas muestran ahora su código corto y un botón "Desmarcar" para revertirlas, tanto en el panel admin (`admin/inscripciones/detalle.php`, ventas en caja de `admin/consumiciones`) como en las vistas de portero y camarero del lector QR.
+
 ## [1.6.0] - 2026-06-24
 
 ### Añadido
